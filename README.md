@@ -49,8 +49,7 @@ The app is **fully configurable through the UI**:
 | Feature | Description |
 |---------|-------------|
 | **Context-based analysis** | Multiple named profiles with independent categories, prompts, and thresholds |
-| **Single video upload** | Wizard flow: select context, then drag-and-drop upload |
-| **Batch processing** | Point to a Databricks Volume, process all videos with real-time SSE progress |
+| **Unified "Process Videos"** | Single wizard: select context -> choose method (local upload or batch from Databricks Volume) |
 | **Unity Catalog browser** | Navigate catalogs, schemas, and volumes to select batch source |
 | **Skip already processed** | Processing log prevents re-analysis of previously processed videos |
 | **Review workflow** | Video player with clickable thumbnails at detection moments, confirm/reject per detection |
@@ -59,6 +58,7 @@ The app is **fully configurable through the UI**:
 | **Paginated reports** | Filter by context, date range (30/60/90 days or custom), search by filename |
 | **Dashboard with filters** | KPIs, category charts, score distribution, filtered by context and date |
 | **Configurable AI model** | Vision model endpoint selectable via Settings (Llama 4, Claude, GPT, Gemini, etc.) |
+| **Batch with SSE progress** | Real-time progress streaming, video preview, skip already processed |
 | **Unified Settings** | Single page with tabs: Contexts, AI Model, Branding |
 | **Customizable branding** | Upload logo, set color palette, live preview |
 | **Multi-language UI** | English, Portuguese, Spanish — switchable in sidebar |
@@ -265,8 +265,7 @@ dbxsc-ai/
       i18n.jsx              # Multi-language system (PT/EN/ES, ~200 keys)
       pages/
         Dashboard.jsx       # KPIs, charts, filters
-        VideoUpload.jsx     # Wizard: context -> upload -> success
-        BatchProcessing.jsx # Wizard: context -> volume -> progress
+        ProcessVideos.jsx   # Unified wizard: context -> upload/batch -> progress
         VideoList.jsx       # Filterable video table
         VideoReview.jsx     # Player + thumbnails + confirm/reject
         Reports.jsx         # Paginated reports with date/context filters

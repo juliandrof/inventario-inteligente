@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Dashboard from './pages/Dashboard';
-import VideoUpload from './pages/VideoUpload';
+import ProcessVideos from './pages/ProcessVideos';
 import VideoList from './pages/VideoList';
 import VideoReview from './pages/VideoReview';
-import BatchProcessing from './pages/BatchProcessing';
 import Settings from './pages/Settings';
 import Reports from './pages/Reports';
 import { fetchBranding } from './api';
@@ -11,8 +10,7 @@ import { useI18n } from './i18n';
 
 const PAGE_KEYS = [
   { key: 'dashboard', labelKey: 'menu.dashboard', icon: 'chart' },
-  { key: 'upload', labelKey: 'menu.upload', icon: 'upload' },
-  { key: 'batch', labelKey: 'menu.batch', icon: 'batch' },
+  { key: 'process', labelKey: 'menu.process', icon: 'upload' },
   { key: 'videos', labelKey: 'menu.videos', icon: 'list' },
   { key: 'review', labelKey: 'menu.review', icon: 'review' },
   { key: 'reports', labelKey: 'menu.reports', icon: 'list' },
@@ -20,7 +18,7 @@ const PAGE_KEYS = [
 ];
 
 const PAGE_COMPONENTS = {
-  dashboard: Dashboard, upload: VideoUpload, batch: BatchProcessing,
+  dashboard: Dashboard, process: ProcessVideos,
   videos: VideoList, review: VideoReview, reports: Reports, settings: Settings,
 };
 

@@ -42,6 +42,19 @@ const translations = {
     'upload.view_analysis': 'Ver Analise',
     'upload.send_another': 'Enviar Outro',
 
+    // Process Videos
+    'process.title': 'Processar Videos',
+    'process.subtitle': 'Analise videos por upload ou processamento em lote',
+    'process.step1': 'Passo 1: Selecione o Contexto',
+    'process.step2': 'Passo 2: Escolha o Metodo',
+    'process.context': 'Contexto',
+    'process.change_context': 'Trocar Contexto',
+    'process.upload_title': 'Upload Local',
+    'process.upload_desc': 'Envie um video do seu dispositivo para analise individual.',
+    'process.batch_title': 'Processamento em Lote',
+    'process.batch_desc': 'Analise multiplos videos armazenados em um Volume do Databricks.',
+    'process.new': 'Novo Processamento',
+
     // Batch
     'batch.title': 'Processamento em Batch',
     'batch.subtitle': 'Analise todos os videos de um volume do Databricks',
@@ -207,6 +220,7 @@ const translations = {
 
     // Settings
     'menu.settings': 'Configuracoes',
+    'menu.process': 'Processar Videos',
     'settings.title': 'Configuracoes',
     'settings.subtitle': 'Modelo de IA, contextos de analise e identidade visual',
     'settings.tab_contexts': 'Contextos',
@@ -264,6 +278,19 @@ const translations = {
     'upload.analysis_started': 'Analysis is in progress.',
     'upload.view_analysis': 'View Analysis',
     'upload.send_another': 'Upload Another',
+
+    // Process Videos
+    'process.title': 'Process Videos',
+    'process.subtitle': 'Analyze videos via upload or batch processing',
+    'process.step1': 'Step 1: Select Context',
+    'process.step2': 'Step 2: Choose Method',
+    'process.context': 'Context',
+    'process.change_context': 'Change Context',
+    'process.upload_title': 'Local Upload',
+    'process.upload_desc': 'Upload a video from your device for individual analysis.',
+    'process.batch_title': 'Batch Processing',
+    'process.batch_desc': 'Analyze multiple videos stored in a Databricks Volume.',
+    'process.new': 'New Processing',
 
     'batch.title': 'Batch Processing',
     'batch.subtitle': 'Analyze all videos from a Databricks volume',
@@ -423,6 +450,7 @@ const translations = {
 
     // Settings
     'menu.settings': 'Settings',
+    'menu.process': 'Process Videos',
     'settings.title': 'Settings',
     'settings.subtitle': 'AI model, analysis contexts, and branding',
     'settings.tab_contexts': 'Contexts',
@@ -479,6 +507,19 @@ const translations = {
     'upload.analysis_started': 'El analisis esta en progreso.',
     'upload.view_analysis': 'Ver Analisis',
     'upload.send_another': 'Subir Otro',
+
+    // Process Videos
+    'process.title': 'Procesar Videos',
+    'process.subtitle': 'Analice videos por carga o procesamiento por lotes',
+    'process.step1': 'Paso 1: Seleccione el Contexto',
+    'process.step2': 'Paso 2: Elija el Metodo',
+    'process.context': 'Contexto',
+    'process.change_context': 'Cambiar Contexto',
+    'process.upload_title': 'Carga Local',
+    'process.upload_desc': 'Suba un video desde su dispositivo para analisis individual.',
+    'process.batch_title': 'Procesamiento por Lotes',
+    'process.batch_desc': 'Analice multiples videos almacenados en un Volumen de Databricks.',
+    'process.new': 'Nuevo Procesamiento',
 
     'batch.title': 'Procesamiento Batch',
     'batch.subtitle': 'Analice todos los videos de un volumen de Databricks',
@@ -638,6 +679,7 @@ const translations = {
 
     // Settings
     'menu.settings': 'Configuracion',
+    'menu.process': 'Procesar Videos',
     'settings.title': 'Configuracion',
     'settings.subtitle': 'Modelo de IA, contextos de analisis e identidad visual',
     'settings.tab_contexts': 'Contextos',
