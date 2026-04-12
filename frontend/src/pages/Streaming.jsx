@@ -11,6 +11,7 @@ function Streaming({ navigate }) {
   const [expandedStream, setExpandedStream] = useState(null);
   const [logsPanel, setLogsPanel] = useState(null); // stream_id or null
   const [logs, setLogs] = useState([]);
+  const [livePanel, setLivePanel] = useState(null); // stream_id or null
 
   const [error, setError] = useState('');
 
@@ -145,9 +146,14 @@ function Streaming({ navigate }) {
                   </div>
 
                   {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: 6, padding: '0 20px 12px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 6, padding: '0 20px 12px', flexWrap: 'wrap', alignItems: 'center' }}>
                     {isLive && <button className="btn btn-sm btn-danger" onClick={e => handleStop(e, Number(g.id))}>{t('process.stream_stop')}</button>}
                     {isStopped && <button className="btn btn-sm btn-primary" onClick={e => handleRestart(e, Number(g.id))}>{t('streaming.restart')}</button>}
+                    {isLive && (
+                      <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); setLivePanel(livePanel === Number(g.id) ? null : Number(g.id)); }}>
+                        {livePanel === Number(g.id) ? t('streaming.hide_live') : t('streaming.show_live')}
+                      </button>
+                    )}
                     <button className="btn btn-sm btn-secondary" onClick={e => startEdit(e, g)}>{t('streaming.edit')}</button>
                     <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); setLogsPanel(showLogs ? null : Number(g.id)); }}>
                       {t('streaming.logs')}
@@ -156,6 +162,14 @@ function Streaming({ navigate }) {
                     <span style={{ fontSize: 18, color: '#999', cursor: 'pointer', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)' }}
                       onClick={(e) => { e.stopPropagation(); setExpandedStream(isExpanded ? null : g.id); }}>v</span>
                   </div>
+
+                  {/* Live preview */}
+                  {livePanel === Number(g.id) && isLive && (
+                    <div style={{ borderTop: '1px solid #eee', padding: 12, background: '#0a0a1a', textAlign: 'center' }}>
+                      <img src={`/api/stream/${g.id}/live`} alt="Live preview"
+                        style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 8 }} />
+                    </div>
+                  )}
 
                   {/* Edit panel */}
                   {isEditing && (

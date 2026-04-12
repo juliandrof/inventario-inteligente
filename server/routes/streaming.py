@@ -110,6 +110,31 @@ async def get_stream_logs(stream_id: int):
     return logs
 
 
+@router.get("/{stream_id}/live")
+async def live_preview(stream_id: int):
+    """MJPEG stream for live preview in browser."""
+    import asyncio
+    manager = StreamManager()
+
+    async def mjpeg_stream():
+        while True:
+            s = manager.get_stream(stream_id)
+            if not s or s["status"] not in ("RUNNING", "CONNECTING"):
+                break
+            frame = manager.get_last_frame(stream_id)
+            if frame:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        mjpeg_stream(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
 @router.get("/{stream_id}/progress")
 async def stream_progress(stream_id: int):
     import asyncio

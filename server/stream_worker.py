@@ -56,6 +56,7 @@ class StreamManager:
             "error": None,
             "videos": [],
             "logs": deque(maxlen=200),
+            "last_frame": None,  # latest JPEG bytes for live preview
         }
         self._streams[stream_id] = stream_info
         self._log(stream_id, "INFO", f"Stream '{name}' created. URL: {self._safe_url(stream_url)}")
@@ -131,6 +132,12 @@ class StreamManager:
         if not s:
             return []
         return list(s["logs"])
+
+    def get_last_frame(self, stream_id: int):
+        s = self._streams.get(stream_id)
+        if s:
+            return s.get("last_frame")
+        return None
 
     def _log(self, stream_id: int, level: str, message: str):
         s = self._streams.get(stream_id)
@@ -231,9 +238,7 @@ class StreamManager:
         window_num = 0
         window_start_time = time.time()
         last_capture_time = 0.0
-        # For live streams, capture more frequently (min 1 fps) for better coverage
-        effective_fps = max(scan_fps, 1.0) if not local_path else scan_fps
-        capture_interval = 1.0 / effective_fps
+        capture_interval = 1.0 / scan_fps
         stream_start_time = time.time()
         is_live = not local_path  # live streams (RTSP/RTMP/HTTP) vs local files
         consecutive_failures = 0
@@ -283,6 +288,16 @@ class StreamManager:
                 elapsed_in_window = now - window_start_time
                 elapsed_total = now - stream_start_time
                 frame_idx += 1
+
+                # Update live preview (~2 fps max to save CPU)
+                if frame_idx % max(1, int(video_fps / 2)) == 0:
+                    h_p, w_p = frame.shape[:2]
+                    preview = frame
+                    if w_p > 640:
+                        sc = 640 / w_p
+                        preview = cv2.resize(frame, (640, int(h_p * sc)))
+                    _, jpg = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                    stream["last_frame"] = jpg.tobytes()
 
                 # Capture frame at scan_fps rate (wall clock based)
                 if now - last_capture_time >= capture_interval:
