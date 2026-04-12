@@ -35,17 +35,29 @@ Contextos sao perfis de analise nomeados. Cada um tem: nome, descricao, cor da t
 5. Se max_score >= threshold: salva thumbnail no Volume, cria deteccao
 6. Progresso atualizado no banco a cada frame
 
-## 3 metodos de processamento
-1. **Upload Local**: wizard (seleciona contexto -> drag-and-drop -> sucesso). Thread em background
-2. **Batch**: wizard (seleciona contexto -> navega Unity Catalog ou digita path do Volume -> inicia). BatchManager singleton com threading. SSE para progresso. Skip de ja processados via processing_log
-3. **Streaming**: menu separado. Aceita URL (RTSP/RTMP/HTTP/HLS) ou path de Volume (mock). Processa em janelas de N segundos (configuravel, default 60). Cada janela vira um video entry. StreamManager singleton. SSE para progresso. Botao stop
+## 3 metodos de processamento (wizard unificado em "Processar Videos")
+O wizard segue: selecionar contexto -> escolher metodo (Upload, Batch ou Streaming) -> executar.
+
+1. **Upload Local**: drag-and-drop de arquivo. Thread em background. Redireciona para tela de sucesso
+2. **Batch**: navega Unity Catalog ou digita path do Volume -> inicia. BatchManager singleton com threading. SSE para progresso. Skip de ja processados via processing_log
+3. **Streaming**: formulario com nome do stream, URL (RTSP/RTMP/HTTP/HLS ou path de Volume mock), credenciais opcionais (usuario/senha para RTSP), janela de analise em segundos (default 60). Apos criar, redireciona para pagina de Streaming
+
+## Streaming (gerenciamento)
+- Menu separado para listar e gerenciar streams criados
+- Cada stream tem: nome customizado, URL, contexto, status (CONNECTING/RUNNING/STOPPED/COMPLETED/FAILED)
+- Acoes por stream: **Parar**, **Iniciar** (reiniciar), **Editar** (nome, URL, janela inline), **Excluir** (com confirmacao), **Logs**
+- **Logs**: painel estilo terminal escuro com niveis coloridos (INFO cinza, OK verde, WARN amarelo, ERROR vermelho, DETECTION laranja). Buffer de 200 entradas. Auto-refresh 3s
+- Videos aninhados dentro de cada stream (expandir para ver janelas processadas)
+- StreamManager singleton com threading. Cada janela de N segundos vira um video entry
+- RTSP: backend OpenCV configurado com FFMPEG + TCP transport. Retry automatico. Credenciais injetadas na URL server-side (mascaradas em logs e UI)
+- Botao "Novo Streaming" redireciona para "Processar Videos"
 
 ## Paginas do frontend (SPA com routing por estado, key para remount no click do menu)
 1. **Dashboard**: KPIs (videos, deteccoes, pendentes, confirmadas, score medio). Graficos de categoria e distribuicao. Filtros: contexto (dropdown) + periodo (30/60/90 dias/personalizar)
-2. **Processar Videos**: wizard 3 passos — contexto (cards) -> metodo (upload ou batch) -> execucao
-3. **Streaming**: lista de streams com expand por janela + "Novo Streaming" (wizard: contexto -> URL + janela -> start). LIVE indicator pulsante. Stop button
+2. **Processar Videos**: wizard 3 passos — contexto (cards) -> metodo (upload, batch ou streaming) -> execucao
+3. **Streaming**: lista de streams com nome, URL, contexto, acoes (parar/iniciar/editar/logs/excluir), expand por janela
 4. **Processamento**: tabela de videos (sem STREAM). Filtros: pesquisa + status + contexto. Colunas: arquivo, contexto (badge colorido), origem, status, duracao, score, deteccoes, acoes
-5. **Revisao**: cards de video com thumbnail da maior deteccao, score badge, contexto badge colorido. Filtros: pesquisa + contexto. Detalhe: player HTML5 + thumbnails clicaveis + confirmar/rejeitar por deteccao + notas. Auto-refresh 3s durante processamento
+5. **Revisao**: cards de video com thumbnail da maior deteccao, score badge, contexto badge colorido. Filtros: pesquisa + contexto + periodo (30/60/90/custom com campos De/Ate). Detalhe: player HTML5 + thumbnails clicaveis + confirmar/rejeitar por deteccao + notas. Auto-refresh 3s durante processamento. Backend pending-videos aceita context_name, upload_from, upload_to
 6. **Relatorio**: paginado server-side (20/pagina). Filtros: pesquisa, contexto, score (todos/com deteccoes/limpos/alto score), periodo (30/60/90/custom). Colunas: arquivo, contexto, origem, duracao, score, deteccoes, categorias, data. Detalhe com player + deteccoes revisadas separadas de pendentes
 7. **Configuracoes** (3 abas):
    - Contextos: CRUD com editor de categorias (tags), prompt (textarea), parametros com tooltips (i), color picker com preview
@@ -53,7 +65,7 @@ Contextos sao perfis de analise nomeados. Cada um tem: nome, descricao, cor da t
    - Visual/Marca: upload de logo, 4 color pickers (primaria, secundaria, destaque, sidebar), preview ao vivo
 
 ## i18n
-React Context com useI18n() hook. 3 idiomas: PT (default), EN, ES. ~200+ chaves. Seletor no sidebar (botoes PT/EN/ES). Persistido em localStorage (dbxsc_ai_lang). Todas as paginas traduzidas: titulos, labels, botoes, placeholders, tooltips, mensagens vazias
+React Context com useI18n() hook. 3 idiomas: PT (default), EN, ES. ~250+ chaves. Seletor no sidebar (botoes PT/EN/ES). Persistido em localStorage (dbxsc_ai_lang). Todas as paginas traduzidas: titulos, labels, botoes, placeholders, tooltips, mensagens vazias
 
 ## Componentes reutilizaveis
 - **ContextBadge**: renderiza tag com cor do contexto (props: name, color, style)
