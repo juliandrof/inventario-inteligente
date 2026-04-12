@@ -85,7 +85,7 @@ function BatchProcessing({ navigate }) {
       )}
 
       {/* Step 2: Select volume + start */}
-      {contextId && (
+      {contextId > 0 && (
         <>
           {/* Context indicator */}
           {!batch && (
