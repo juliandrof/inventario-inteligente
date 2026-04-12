@@ -16,6 +16,7 @@ function VideoUpload({ navigate }) {
 
   const handleFile = async (file) => {
     if (!file) return;
+    if (!contextId) { setError(t('upload.context_required')); return; }
     const allowed = ['.mp4', '.avi', '.mov', '.mkv', '.webm'];
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     if (!allowed.includes(ext)) { setError(`Invalid format: ${allowed.join(', ')}`); return; }
@@ -31,7 +32,7 @@ function VideoUpload({ navigate }) {
     <div>
       <div className="page-header"><h1>{t('upload.title')}</h1><p>{t('upload.subtitle')}</p></div>
 
-      {!result && contexts.length > 0 && (
+      {!result && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>{t('upload.context')}</label>

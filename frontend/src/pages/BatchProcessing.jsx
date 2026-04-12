@@ -30,6 +30,7 @@ function BatchProcessing({ navigate }) {
 
   const handleStart = async () => {
     if (!volumePath.trim()) return;
+    if (!contextId) { setError(t('upload.context_required')); return; }
     setError('');
     setLoading(true);
 
@@ -149,7 +150,7 @@ function BatchProcessing({ navigate }) {
         <button
           className="btn btn-primary"
           onClick={handleStart}
-          disabled={loading || !volumePath.trim() || (batch && batch.status === 'RUNNING')}
+          disabled={loading || !volumePath.trim() || !contextId || (batch && batch.status === 'RUNNING')}
         >
           {loading ? t('batch.starting') : t('batch.start')}
         </button>
