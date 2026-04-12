@@ -224,10 +224,13 @@ Model: Llama 4 Maverick via Databricks FMAPI
 | Volume | FMAPI | Lakebase | Storage | Total/month |
 |--------|-------|----------|---------|-------------|
 | 10 hours | ~$15 | ~$5 | <$1 | **~$20** |
+| 1,000 hours | ~$360 | ~$15 | ~$20 | **~$395** |
 | 5,000 hours | ~$1,800 | ~$50 | ~$100 | **~$1,950** |
-| 100,000 hours | ~$36,000 | ~$200 | ~$2,000 | **~$38,200** |
-
-Lakebase costs significantly less than SQL Warehouse for this workload since it scales to zero when idle.
+| 10,000 hours | ~$3,600 | ~$80 | ~$200 | **~$3,880** |
+| 20,000 hours | ~$7,200 | ~$120 | ~$400 | **~$7,720** |
+| 30,000 hours | ~$10,800 | ~$150 | ~$600 | **~$11,550** |
+| 40,000 hours | ~$14,400 | ~$175 | ~$800 | **~$15,375** |
+| 50,000 hours | ~$18,000 | ~$200 | ~$1,000 | **~$19,200** |
 
 ## Project Structure
 
