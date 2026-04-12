@@ -13,6 +13,7 @@ function ProcessVideos({ navigate }) {
 
   // Stream state
   const [streamUrl, setStreamUrl] = useState('');
+  const [streamWindow, setStreamWindow] = useState(60);
   const [streamData, setStreamData] = useState(null);
   const streamEsRef = useRef(null);
 
@@ -59,7 +60,7 @@ function ProcessVideos({ navigate }) {
     if (!streamUrl.trim()) return;
     setError(''); setLoading(true);
     try {
-      const res = await startStream(streamUrl.trim(), contextId);
+      const res = await startStream(streamUrl.trim(), contextId, streamWindow);
       setStreamData(res); setStep('streaming');
       const es = new EventSource(`/api/stream/${res.stream_id}/progress`);
       streamEsRef.current = es;
@@ -398,6 +399,15 @@ function ProcessVideos({ navigate }) {
               placeholder="rtsp://camera-ip:554/stream1" style={{ fontFamily: 'monospace' }} />
           </div>
 
+          <div className="form-group" style={{ maxWidth: 250 }}>
+            <label>{t('process.stream_window_label')}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="number" min="10" max="600" value={streamWindow} onChange={e => setStreamWindow(Number(e.target.value))}
+                style={{ width: 80 }} />
+              <span style={{ fontSize: 13, color: '#999' }}>{t('process.stream_window_unit')}</span>
+            </div>
+          </div>
+
           <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 }}>
             <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('process.stream_protocols')}</div>
             <div style={{ color: '#666', lineHeight: 1.8 }}>
@@ -405,6 +415,10 @@ function ProcessVideos({ navigate }) {
               <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtmp://</code> — {t('process.stream_rtmp')}<br/>
               <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>http(s)://</code> — {t('process.stream_http')}<br/>
               <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>/Volumes/...</code> — {t('process.stream_mock')}
+            </div>
+            <div style={{ marginTop: 8, padding: '8px 10px', background: '#e8f5e9', borderRadius: 6, color: '#2e7d32' }}>
+              <strong>{t('process.stream_test_label')}</strong><br/>
+              <code style={{ fontSize: 12 }}>/Volumes/jsf_dbxsc_demo/main/test_videos/motorista_fadiga_severa.mp4</code>
             </div>
           </div>
 

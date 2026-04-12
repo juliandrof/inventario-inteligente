@@ -206,13 +206,14 @@ function Reports({ navigate }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="data-table">
               <thead>
-                <tr><th>{t('reports.file')}</th><th>{t('reports.context')}</th><th>{t('reports.duration')}</th><th>{t('reports.score')}</th><th>{t('reports.detections')}</th><th>{t('reports.categories')}</th><th>{t('reports.upload_date')}</th><th>{t('reports.actions')}</th></tr>
+                <tr><th>{t('reports.file')}</th><th>{t('reports.context')}</th><th>{t('videos.source')}</th><th>{t('reports.duration')}</th><th>{t('reports.score')}</th><th>{t('reports.detections')}</th><th>{t('reports.categories')}</th><th>{t('reports.upload_date')}</th><th>{t('reports.actions')}</th></tr>
               </thead>
               <tbody>
                 {data.items.map((v, i) => (
                   <tr key={i} className="clickable" onClick={() => handleSelect(v)}>
                     <td style={{ fontWeight: 500 }}>{v.filename}</td>
                     <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
+                    <td><span style={{ fontSize: 11, color: '#666' }}>{v.source || '-'}</span></td>
                     <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                     <td>
                       {v.overall_risk != null ? (

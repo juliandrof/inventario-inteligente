@@ -75,7 +75,7 @@ async def report_videos(
     # Fetch page
     rows = execute_query(f"""
         SELECT v.video_id, v.filename, v.duration_seconds, v.upload_timestamp,
-               v.context_name, v.context_color,
+               v.context_name, v.context_color, v.source,
                ar.scores_json, ar.overall_risk, ar.total_detections, ar.analysis_timestamp
         FROM videos v
         LEFT JOIN analysis_results ar ON v.video_id = ar.video_id

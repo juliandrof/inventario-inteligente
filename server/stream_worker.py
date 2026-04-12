@@ -75,7 +75,7 @@ class StreamManager:
         scan_prompt = config.get("scan_prompt", "Analyze this image.")
         scan_fps = config.get("scan_fps", 0.2)
         threshold = config.get("score_threshold", 4)
-        window_seconds = 60  # 1-minute windows
+        window_seconds = config.get("window_seconds", 60)
 
         # For mock/simulation: if URL points to a volume file, download it first
         local_path = None

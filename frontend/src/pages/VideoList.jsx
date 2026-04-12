@@ -164,15 +164,15 @@ function VideoList({ navigate }) {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <table className="data-table">
             <thead>
-              <tr><th>{t('videos.file')}</th><th>{t('reports.context')}</th><th>{t('videos.status')}</th><th>{t('videos.progress')}</th><th>{t('videos.duration')}</th><th>{t('videos.score')}</th><th>{t('videos.detections')}</th><th>{t('videos.actions')}</th></tr>
+              <tr><th>{t('videos.file')}</th><th>{t('reports.context')}</th><th>{t('videos.source')}</th><th>{t('videos.status')}</th><th>{t('videos.duration')}</th><th>{t('videos.score')}</th><th>{t('videos.detections')}</th><th>{t('videos.actions')}</th></tr>
             </thead>
             <tbody>
               {filtered.map((v, i) => (
                 <tr key={i} className="clickable" onClick={() => navigate('review', { videoId: v.video_id })}>
                   <td style={{ fontWeight: 500 }}>{v.filename}</td>
                   <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
+                  <td><span style={{ fontSize: 11, color: '#666' }}>{v.source || '-'}</span></td>
                   <td><span className={`badge badge-${(v.status || 'pending').toLowerCase()}`}>{v.status}</span></td>
-                  <td>{v.status !== 'COMPLETED' && v.status !== 'FAILED' ? <div className="progress-bar" style={{ width: 80 }}><div className="progress-bar-fill" style={{ width: `${v.progress_pct || 0}%` }}></div></div> : <span style={{ fontSize: 12, color: '#999' }}>100%</span>}</td>
                   <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                   <td>{v.overall_risk != null ? <span className={`score-gauge ${sc(v.overall_risk)}`}>{typeof v.overall_risk === 'number' ? v.overall_risk.toFixed(1) : v.overall_risk}</span> : '-'}</td>
                   <td>{v.total_detections || 0}</td>

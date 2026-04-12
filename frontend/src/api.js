@@ -90,8 +90,8 @@ export const fetchReportVideos = (params = {}) => {
 };
 
 // Streaming
-export const startStream = (streamUrl, contextId) => request('/stream/start', {
-  method: 'POST', body: JSON.stringify({ stream_url: streamUrl, context_id: contextId }),
+export const startStream = (streamUrl, contextId, windowSec = 60) => request('/stream/start', {
+  method: 'POST', body: JSON.stringify({ stream_url: streamUrl, context_id: contextId, window_seconds: windowSec }),
 });
 export const stopStream = (id) => request(`/stream/${id}/stop`, { method: 'POST' });
 export const fetchStreams = () => request('/stream');

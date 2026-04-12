@@ -15,6 +15,7 @@ router = APIRouter()
 class StreamStartRequest(BaseModel):
     stream_url: str
     context_id: int
+    window_seconds: int = 60
 
 
 @router.post("/start")
@@ -41,6 +42,7 @@ async def start_stream(req: StreamStartRequest):
         "context_color": ctx.get("color"),
     }
 
+    config["window_seconds"] = req.window_seconds
     manager = StreamManager()
     info = manager.start_stream(req.stream_url, config, req.context_id, ctx["name"])
     return info
