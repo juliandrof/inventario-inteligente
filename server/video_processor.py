@@ -65,6 +65,24 @@ def save_thumbnail(video_id: int, frame_bytes: bytes, timestamp_sec: float) -> s
     return filename
 
 
+def _deduplicate_detections(detections):
+    """Merge consecutive detections of same category within 5s window."""
+    if not detections:
+        return []
+    sorted_dets = sorted(detections, key=lambda d: d["timestamp_sec"])
+    merged = []
+    current = sorted_dets[0]
+    for det in sorted_dets[1:]:
+        if det["category"] == current["category"] and det["timestamp_sec"] - current["timestamp_sec"] <= 5.0:
+            if det["score"] > current["score"]:
+                current = det
+        else:
+            merged.append(current)
+            current = det
+    merged.append(current)
+    return merged
+
+
 def process_video(video_id: int, local_path: str, config: dict, progress_callback=None):
     """Single-pass analysis pipeline. Extracts frames and analyzes each one."""
     import json
@@ -167,7 +185,10 @@ def process_video(video_id: int, local_path: str, config: dict, progress_callbac
         frame_idx += 1
 
     cap.release()
-    logger.info(f"[V{video_id}] Analysis complete. {len(detections)} detections from {analyzed_count} frames.")
+    logger.info(f"[V{video_id}] Analysis complete. {len(detections)} raw detections from {analyzed_count} frames.")
+
+    detections = _deduplicate_detections(detections)
+    logger.info(f"[V{video_id}] After deduplication: {len(detections)} detections.")
 
     # Persist results
     _save_results(video_id, detections, categories, config)

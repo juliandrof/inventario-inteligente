@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchReportVideos, fetchDetections, fetchContexts } from '../api';
+import { fetchReportVideos, fetchDetections, fetchContexts, fetchTimezone } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
 function daysAgo(n) {
@@ -22,8 +22,12 @@ function Reports({ navigate }) {
   const [page, setPage] = useState(1);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [detections, setDetections] = useState([]);
+  const [tz, setTz] = useState('America/Sao_Paulo');
 
-  useEffect(() => { fetchContexts().then(setContexts).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchContexts().then(setContexts).catch(() => {});
+    fetchTimezone().then(r => { if (r.timezone) setTz(r.timezone); }).catch(() => {});
+  }, []);
 
   const resolvedFrom = datePeriod === 'CUSTOM' ? uploadFrom : datePeriod === '30' ? daysAgo(30) : datePeriod === '60' ? daysAgo(60) : datePeriod === '90' ? daysAgo(90) : '';
   const resolvedTo = datePeriod === 'CUSTOM' ? uploadTo : '';
@@ -209,7 +213,7 @@ function Reports({ navigate }) {
                 <tr><th>{t('reports.file')}</th><th>{t('reports.context')}</th><th>{t('videos.source')}</th><th>{t('reports.duration')}</th><th>{t('reports.score')}</th><th>{t('reports.detections')}</th><th>{t('reports.categories')}</th><th>{t('reports.upload_date')}</th><th>{t('reports.actions')}</th></tr>
               </thead>
               <tbody>
-                <GroupedVideoRows items={data.items} onSelect={handleSelect} navigate={navigate} />
+                <GroupedVideoRows items={data.items} onSelect={handleSelect} navigate={navigate} tz={tz} />
               </tbody>
             </table>
           </div>
@@ -239,7 +243,7 @@ function getStreamPrefix(filename) {
   return m ? m[1] : null;
 }
 
-function GroupedVideoRows({ items, onSelect, navigate }) {
+function GroupedVideoRows({ items, onSelect, navigate, tz }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = React.useState({});
 
@@ -275,7 +279,7 @@ function GroupedVideoRows({ items, onSelect, navigate }) {
 
   return rows.map((row, ri) => {
     if (row.type === 'single') {
-      return <VideoRow key={ri} v={row.video} onSelect={onSelect} navigate={navigate} />;
+      return <VideoRow key={ri} v={row.video} onSelect={onSelect} navigate={navigate} tz={tz} />;
     }
     const { prefix, videos } = row;
     const totalDet = videos.reduce((s, v) => s + (v.total_detections || 0), 0);
@@ -296,16 +300,16 @@ function GroupedVideoRows({ items, onSelect, navigate }) {
           </td>
           <td>{totalDet}</td>
           <td style={{ fontSize: 11, color: '#999' }}>{videos.length} windows</td>
-          <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(videos[0].upload_timestamp)}</td>
+          <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(videos[0].upload_timestamp, tz)}</td>
           <td></td>
         </tr>
-        {isOpen && videos.map((v, vi) => <VideoRow key={`${ri}-${vi}`} v={v} onSelect={onSelect} navigate={navigate} nested />)}
+        {isOpen && videos.map((v, vi) => <VideoRow key={`${ri}-${vi}`} v={v} onSelect={onSelect} navigate={navigate} nested tz={tz} />)}
       </React.Fragment>
     );
   });
 }
 
-function VideoRow({ v, onSelect, navigate, nested }) {
+function VideoRow({ v, onSelect, navigate, nested, tz }) {
   const { t } = useI18n();
   return (
     <tr className="clickable" onClick={() => onSelect(v)} style={nested ? { background: '#fafbfc' } : {}}>
@@ -324,7 +328,7 @@ function VideoRow({ v, onSelect, navigate, nested }) {
       <td style={{ fontSize: 11 }}>
         {(() => { try { return Object.entries(JSON.parse(v.scores_json)).map(([k,val]) => `${k}:${val}`).join(' | '); } catch { return '-'; } })()}
       </td>
-      <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp)}</td>
+      <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp, tz)}</td>
       <td>
         <button className="btn btn-sm btn-primary" onClick={e => { e.stopPropagation(); navigate('review', { videoId: v.video_id }); }}>
           {t('reports.reanalyze')}
@@ -336,6 +340,6 @@ function VideoRow({ v, onSelect, navigate, nested }) {
 
 function scoreClass(s) { return s <= 3 ? 'score-low' : s <= 6 ? 'score-medium' : s <= 8 ? 'score-high' : 'score-critical'; }
 function fmtTime(sec) { if (!sec && sec !== 0) return '-'; return `${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`; }
-function fmtDate(ts) { if (!ts) return '-'; try { return new Date(ts).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return ts; } }
+function fmtDate(ts, tz) { if (!ts) return '-'; try { return new Date(ts).toLocaleString('pt-BR', { timeZone: tz, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return ts; } }
 
 export default Reports;

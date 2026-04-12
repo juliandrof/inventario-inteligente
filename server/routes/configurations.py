@@ -5,7 +5,7 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
-from server.database import execute_query, execute_update
+from server.database import execute_query, execute_update, get_timezone
 
 router = APIRouter()
 
@@ -18,6 +18,11 @@ class ConfigUpdate(BaseModel):
 @router.get("")
 async def list_configs():
     return execute_query("SELECT config_key, config_value, description, updated_at FROM configurations ORDER BY config_key")
+
+
+@router.get("/timezone")
+async def get_timezone_config():
+    return {"timezone": get_timezone()}
 
 
 @router.get("/categories")

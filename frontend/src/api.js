@@ -64,6 +64,7 @@ export const cancelBatch = (id) => request(`/batch/${id}/cancel`, { method: 'POS
 export const fetchBatches = () => request('/batch');
 
 // Configurations
+export const fetchTimezone = () => request('/config/timezone');
 export const fetchConfigs = () => request('/config');
 export const fetchCategories = () => request('/config/categories');
 export const updateConfig = (key, value, description) => request(`/config/${key}`, {

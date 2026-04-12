@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchDashboardSummary, fetchDashboardByCategory, fetchDashboardRecent, fetchRiskDistribution, fetchContexts } from '../api';
+import { fetchDashboardSummary, fetchDashboardByCategory, fetchDashboardRecent, fetchRiskDistribution, fetchContexts, fetchTimezone } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
 function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; }
@@ -16,8 +16,12 @@ function Dashboard({ navigate }) {
   const [datePeriod, setDatePeriod] = useState('ALL');
   const [uploadFrom, setUploadFrom] = useState('');
   const [uploadTo, setUploadTo] = useState('');
+  const [tz, setTz] = useState('America/Sao_Paulo');
 
-  useEffect(() => { fetchContexts().then(setContexts).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchContexts().then(setContexts).catch(() => {});
+    fetchTimezone().then(r => { if (r.timezone) setTz(r.timezone); }).catch(() => {});
+  }, []);
 
   const resolvedFrom = datePeriod === 'CUSTOM' ? uploadFrom : datePeriod === '30' ? daysAgo(30) : datePeriod === '60' ? daysAgo(60) : datePeriod === '90' ? daysAgo(90) : '';
   const resolvedTo = datePeriod === 'CUSTOM' ? uploadTo : '';
@@ -150,7 +154,7 @@ function Dashboard({ navigate }) {
                     <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                     <td>{v.overall_risk ? <span className={`score-gauge ${sc(v.overall_risk)}`}>{typeof v.overall_risk === 'number' ? v.overall_risk.toFixed(1) : v.overall_risk}</span> : '-'}</td>
                     <td>{v.total_detections || 0}</td>
-                    <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp)}</td>
+                    <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp, tz)}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -163,5 +167,5 @@ function Dashboard({ navigate }) {
 }
 
 function sc(s) { return s <= 3 ? 'score-low' : s <= 6 ? 'score-medium' : s <= 8 ? 'score-high' : 'score-critical'; }
-function fmtDate(ts) { if (!ts) return '-'; try { return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ts; } }
+function fmtDate(ts, tz) { if (!ts) return '-'; try { return new Date(ts).toLocaleString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ts; } }
 export default Dashboard;
