@@ -231,20 +231,54 @@ class StreamManager:
         window_num = 0
         window_start_time = time.time()
         last_capture_time = 0.0
-        capture_interval = 1.0 / scan_fps  # e.g. 5 seconds for 0.2 fps
+        # For live streams, capture more frequently (min 1 fps) for better coverage
+        effective_fps = max(scan_fps, 1.0) if not local_path else scan_fps
+        capture_interval = 1.0 / effective_fps
         stream_start_time = time.time()
+        is_live = not local_path  # live streams (RTSP/RTMP/HTTP) vs local files
+        consecutive_failures = 0
+        max_failures = 150  # ~30s of failed reads at 5fps before giving up
+
+        if is_live:
+            self._log(stream_id, "INFO", f"Live stream mode: will retry on dropped frames, capture every {capture_interval:.1f}s")
+        else:
+            self._log(stream_id, "INFO", f"File mode: will stop at end of file, capture every {capture_interval:.1f}s")
 
         try:
             while not stream.get("stop_requested"):
                 ret, frame = cap.read()
                 if not ret:
-                    if window_frames:
-                        self._log(stream_id, "INFO", f"End of stream. Processing final window ({len(window_frames)} frames)...")
-                        self._process_window(stream_id, stream, window_frames, window_num,
-                                             categories, scan_prompt, threshold, config, context_id, context_name)
-                    self._log(stream_id, "INFO", "Stream ended (no more frames).")
-                    break
+                    if is_live:
+                        # Live streams can drop frames — retry instead of stopping
+                        consecutive_failures += 1
+                        if consecutive_failures >= max_failures:
+                            self._log(stream_id, "ERROR", f"Lost connection after {consecutive_failures} consecutive failed reads. Attempting reconnect...")
+                            cap.release()
+                            time.sleep(2)
+                            if is_rtsp:
+                                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|analyzeduration;10000000|stimeout;10000000"
+                                cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+                            else:
+                                cap = cv2.VideoCapture(stream_url)
+                            if cap.isOpened():
+                                self._log(stream_id, "OK", "Reconnected!")
+                                consecutive_failures = 0
+                            else:
+                                self._log(stream_id, "ERROR", "Reconnect failed. Stopping.")
+                                break
+                        else:
+                            time.sleep(0.2)
+                        continue
+                    else:
+                        # File mode: end of file
+                        if window_frames:
+                            self._log(stream_id, "INFO", f"End of file. Processing final window ({len(window_frames)} frames)...")
+                            self._process_window(stream_id, stream, window_frames, window_num,
+                                                 categories, scan_prompt, threshold, config, context_id, context_name)
+                        self._log(stream_id, "INFO", "File finished.")
+                        break
 
+                consecutive_failures = 0
                 now = time.time()
                 elapsed_in_window = now - window_start_time
                 elapsed_total = now - stream_start_time
