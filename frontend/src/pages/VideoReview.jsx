@@ -263,29 +263,8 @@ function VideoReview({ navigate, pageParams }) {
 
           <div className="video-review-layout">
             <div className="video-player-section">
-              {video?.source === 'STREAM' ? (
-                detections.filter(d => d.thumbnail_path).length > 0 ? (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: 12, background: '#1a1a2e', borderRadius: 12 }}>
-                    {detections.filter(d => d.thumbnail_path).map((d, i) => (
-                      <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', border: activeDetection === d.detection_id ? '2px solid var(--dbxsc-primary)' : '2px solid transparent' }}
-                        onClick={() => setActiveDetection(d.detection_id)}>
-                        <img src={`/api/thumbnails/${d.thumbnail_path}`} alt={d.category}
-                          style={{ width: 160, height: 100, objectFit: 'cover' }} />
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'rgba(0,0,0,0.7)', color: 'white', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
-                          <span>{d.category}</span><span style={{ color: getScoreColor(d.score) }}>{d.score}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ padding: 40, textAlign: 'center', background: '#1a1a2e', borderRadius: 12, color: '#666' }}>
-                    {t('reports.stream_no_file')}
-                  </div>
-                )
-              ) : (
-                <video ref={videoRef} controls src={`/api/videos/${videoId}/stream`}
-                  style={{ width: '100%', borderRadius: 12, background: '#000' }} />
-              )}
+              <video ref={videoRef} controls src={`/api/videos/${videoId}/stream`}
+                style={{ width: '100%', borderRadius: 12, background: '#000' }} />
 
               {detections.length > 0 && (
                 <div className="card" style={{ marginTop: 12 }}>

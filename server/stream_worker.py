@@ -18,6 +18,7 @@ from server.video_processor import save_thumbnail
 logger = logging.getLogger(__name__)
 
 THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc_ai/main/thumbnails")
+VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/dbxsc_ai/main/uploaded_videos")
 
 
 class StreamManager:
@@ -280,6 +281,40 @@ class StreamManager:
                 stream["status"] = "STOPPED" if stream.get("stop_requested") else "COMPLETED"
             self._log(stream_id, "INFO", f"Finished. Status={stream['status']}, Windows={stream['windows_processed']}, Detections={stream['total_detections']}")
 
+    def _save_window_video(self, stream_id, frames, window_label):
+        """Encode captured frames into an MP4 file and upload to Volume."""
+        try:
+            tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            tmp.close()
+            # Decode first frame to get dimensions
+            first_img = cv2.imdecode(
+                __import__("numpy").frombuffer(frames[0][2], dtype=__import__("numpy").uint8),
+                cv2.IMREAD_COLOR,
+            )
+            h, w = first_img.shape[:2]
+            fps_out = max(1.0, len(frames) / max(1, frames[-1][1] - frames[0][1])) if len(frames) > 1 else 1.0
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(tmp.name, fourcc, fps_out, (w, h))
+            import numpy as np
+            for _, _, jpeg_bytes in frames:
+                img = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    writer.write(img)
+            writer.release()
+
+            volume_path = f"{VIDEO_VOLUME}/{window_label}.mp4"
+            ws = get_workspace_client()
+            with open(tmp.name, "rb") as f:
+                ws.files.upload(volume_path, f, overwrite=True)
+            os.unlink(tmp.name)
+            self._log(stream_id, "OK", f"Window video saved: {window_label}.mp4")
+            return volume_path
+        except Exception as e:
+            self._log(stream_id, "WARN", f"Could not save window video: {e}")
+            if os.path.exists(tmp.name):
+                os.unlink(tmp.name)
+            return None
+
     def _process_window(self, stream_id, stream, frames, window_num, categories, scan_prompt, threshold, config, context_id, context_name):
         if not frames:
             return
@@ -289,13 +324,18 @@ class StreamManager:
         end_ts = frames[-1][1]
         window_label = f"stream_{stream_id}_w{window_num}_{int(start_ts)}s-{int(end_ts)}s"
 
+        # Save frames as MP4 to Volume for playback
+        volume_path = self._save_window_video(stream_id, frames, window_label)
+        if not volume_path:
+            volume_path = f"stream://{self._safe_url(stream['stream_url'])}#w{window_num}"
+
         execute_update("""
             INSERT INTO videos (video_id, filename, volume_path, duration_seconds,
                 upload_timestamp, status, source, context_id, context_name, context_color)
             VALUES (%(vid)s, %(name)s, %(path)s, %(dur)s, NOW(), 'ANALYZING', 'STREAM', %(cid)s, %(cname)s, %(ccolor)s)
         """, {
             "vid": video_id, "name": window_label,
-            "path": f"stream://{self._safe_url(stream['stream_url'])}#w{window_num}",
+            "path": volume_path,
             "dur": end_ts - start_ts,
             "cid": context_id or None, "cname": context_name, "ccolor": config.get("context_color"),
         })
