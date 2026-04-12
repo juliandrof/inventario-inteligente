@@ -52,7 +52,7 @@ function Dashboard({ navigate }) {
         </div>
         <div className="stat-card danger">
           <div className="stat-value">{s.avg_risk_score || 0}</div>
-          <div className="stat-label">Score Medio de Risco</div>
+          <div className="stat-label">Score Medio</div>
         </div>
       </div>
 
@@ -86,7 +86,7 @@ function Dashboard({ navigate }) {
         </div>
 
         <div className="card">
-          <div className="card-title">Distribuicao de Risco</div>
+          <div className="card-title">Distribuicao de Score</div>
           {risk.length === 0 ? (
             <p style={{ color: '#999', fontSize: 14 }}>Nenhuma deteccao ainda</p>
           ) : (
@@ -130,7 +130,7 @@ function Dashboard({ navigate }) {
                 <th>Arquivo</th>
                 <th>Status</th>
                 <th>Duracao</th>
-                <th>Risco</th>
+                <th>Score</th>
                 <th>Deteccoes</th>
                 <th>Data</th>
               </tr>

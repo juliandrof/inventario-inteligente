@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchReportVideos, fetchDetections, fetchContexts } from '../api';
 
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
+}
+
 function Reports({ navigate }) {
   const [data, setData] = useState({ items: [], total: 0, page: 1, total_pages: 1 });
   const [loading, setLoading] = useState(true);
@@ -8,15 +14,17 @@ function Reports({ navigate }) {
   const [riskFilter, setRiskFilter] = useState('ALL');
   const [contextFilter, setContextFilter] = useState('');
   const [contexts, setContexts] = useState([]);
+  const [datePeriod, setDatePeriod] = useState('ALL');
   const [uploadFrom, setUploadFrom] = useState('');
   const [uploadTo, setUploadTo] = useState('');
-  const [reviewFrom, setReviewFrom] = useState('');
-  const [reviewTo, setReviewTo] = useState('');
   const [page, setPage] = useState(1);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [detections, setDetections] = useState([]);
 
   useEffect(() => { fetchContexts().then(setContexts).catch(() => {}); }, []);
+
+  const resolvedFrom = datePeriod === 'CUSTOM' ? uploadFrom : datePeriod === '30' ? daysAgo(30) : datePeriod === '60' ? daysAgo(60) : datePeriod === '90' ? daysAgo(90) : '';
+  const resolvedTo = datePeriod === 'CUSTOM' ? uploadTo : '';
 
   const loadData = useCallback((p = page) => {
     setLoading(true);
@@ -24,18 +32,16 @@ function Reports({ navigate }) {
     if (search) params.search = search;
     if (riskFilter !== 'ALL') params.risk_filter = riskFilter;
     if (contextFilter) params.context_name = contextFilter;
-    if (uploadFrom) params.upload_from = uploadFrom;
-    if (uploadTo) params.upload_to = uploadTo;
-    if (reviewFrom) params.review_from = reviewFrom;
-    if (reviewTo) params.review_to = reviewTo;
+    if (resolvedFrom) params.upload_from = resolvedFrom;
+    if (resolvedTo) params.upload_to = resolvedTo;
 
     fetchReportVideos(params)
       .then(d => { setData(d); setPage(d.page); })
       .catch(() => setData({ items: [], total: 0, page: 1, total_pages: 1 }))
       .finally(() => setLoading(false));
-  }, [search, riskFilter, uploadFrom, uploadTo, reviewFrom, reviewTo, page]);
+  }, [search, riskFilter, contextFilter, resolvedFrom, resolvedTo, page]);
 
-  useEffect(() => { loadData(1); }, [search, riskFilter, contextFilter, uploadFrom, uploadTo, reviewFrom, reviewTo]);
+  useEffect(() => { loadData(1); }, [search, riskFilter, contextFilter, datePeriod, uploadFrom, uploadTo]);
 
   const handlePage = (p) => { setPage(p); loadData(p); };
 
@@ -82,7 +88,7 @@ function Reports({ navigate }) {
             })()}
             <div className={`stat-card ${(selectedVideo.overall_risk || 0) >= 7 ? 'danger' : ''}`}>
               <div className="stat-value">{typeof selectedVideo.overall_risk === 'number' ? selectedVideo.overall_risk.toFixed(1) : selectedVideo.overall_risk || 0}</div>
-              <div className="stat-label">Risco Geral</div>
+              <div className="stat-label">Score Geral</div>
             </div>
           </div>
         )}
@@ -135,55 +141,52 @@ function Reports({ navigate }) {
 
       {/* Filters */}
       <div className="card">
-        {/* Search + risk filter */}
+        {/* Search + score filter */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
           <input type="text" placeholder="Pesquisar por nome..." value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 180, padding: '9px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 14 }} />
-          {[['ALL','Todos'],['WITH_DETECTIONS','Com Deteccoes'],['CLEAN','Limpos'],['HIGH_RISK','Alto Risco']].map(([k,l]) => (
+          {[['ALL','Todos'],['WITH_DETECTIONS','Com Deteccoes'],['CLEAN','Limpos'],['HIGH_RISK','Alto Score']].map(([k,l]) => (
             <button key={k} className={`btn btn-sm ${riskFilter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setRiskFilter(k)}>{l}</button>
           ))}
         </div>
 
-        {/* Context filter */}
-        {contexts.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 500, marginRight: 8 }}>Contexto:</label>
-            <select value={contextFilter} onChange={e => setContextFilter(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, minWidth: 180 }}>
-              <option value="">Todos os contextos</option>
-              {contexts.map(c => <option key={c.context_id} value={c.name}>{c.name}</option>)}
-            </select>
-          </div>
-        )}
+        {/* Context + Period filters */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          {contexts.length > 0 && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Contexto</label>
+              <select value={contextFilter} onChange={e => setContextFilter(e.target.value)}
+                style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, minWidth: 180 }}>
+                <option value="">Todos</option>
+                {contexts.map(c => <option key={c.context_id} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
 
-        {/* Date filters */}
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Upload de</label>
-            <input type="date" value={uploadFrom} onChange={e => setUploadFrom(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Periodo</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['ALL','Todos'],['30','30 dias'],['60','60 dias'],['90','90 dias'],['CUSTOM','Personalizar']].map(([k,l]) => (
+                <button key={k} className={`btn btn-sm ${datePeriod === k ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => { setDatePeriod(k); if (k !== 'CUSTOM') { setUploadFrom(''); setUploadTo(''); } }}>{l}</button>
+              ))}
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Upload ate</label>
-            <input type="date" value={uploadTo} onChange={e => setUploadTo(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Revisao de</label>
-            <input type="date" value={reviewFrom} onChange={e => setReviewFrom(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Revisao ate</label>
-            <input type="date" value={reviewTo} onChange={e => setReviewTo(e.target.value)}
-              style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
-          </div>
-          {(uploadFrom || uploadTo || reviewFrom || reviewTo) && (
-            <button className="btn btn-sm btn-secondary" style={{ alignSelf: 'flex-end' }}
-              onClick={() => { setUploadFrom(''); setUploadTo(''); setReviewFrom(''); setReviewTo(''); }}>
-              Limpar Datas
-            </button>
+
+          {datePeriod === 'CUSTOM' && (
+            <>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>De</label>
+                <input type="date" value={uploadFrom} onChange={e => setUploadFrom(e.target.value)}
+                  style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Ate</label>
+                <input type="date" value={uploadTo} onChange={e => setUploadTo(e.target.value)}
+                  style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -201,7 +204,7 @@ function Reports({ navigate }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="data-table">
               <thead>
-                <tr><th>Arquivo</th><th>Contexto</th><th>Duracao</th><th>Risco</th><th>Deteccoes</th><th>Scores</th><th>Upload</th><th>Acoes</th></tr>
+                <tr><th>Arquivo</th><th>Contexto</th><th>Duracao</th><th>Score</th><th>Deteccoes</th><th>Categorias</th><th>Upload</th><th>Acoes</th></tr>
               </thead>
               <tbody>
                 {data.items.map((v, i) => (
@@ -238,16 +241,11 @@ function Reports({ navigate }) {
               <button className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => handlePage(page - 1)}>Anterior</button>
               {Array.from({ length: Math.min(data.total_pages, 10) }, (_, i) => {
                 const p = i + 1;
-                return (
-                  <button key={p} className={`btn btn-sm ${page === p ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => handlePage(p)}>{p}</button>
-                );
+                return <button key={p} className={`btn btn-sm ${page === p ? 'btn-primary' : 'btn-secondary'}`} onClick={() => handlePage(p)}>{p}</button>;
               })}
               {data.total_pages > 10 && <span style={{ color: '#999' }}>...</span>}
               <button className="btn btn-sm btn-secondary" disabled={page >= data.total_pages} onClick={() => handlePage(page + 1)}>Proximo</button>
-              <span style={{ fontSize: 12, color: '#999', marginLeft: 8 }}>
-                Pagina {page} de {data.total_pages} ({data.total} videos)
-              </span>
+              <span style={{ fontSize: 12, color: '#999', marginLeft: 8 }}>Pagina {page} de {data.total_pages} ({data.total} videos)</span>
             </div>
           )}
         </>

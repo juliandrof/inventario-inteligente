@@ -60,7 +60,7 @@ function VideoList({ navigate }) {
                 <th>Status</th>
                 <th>Progresso</th>
                 <th>Duracao</th>
-                <th>Risco</th>
+                <th>Score</th>
                 <th>Deteccoes</th>
                 <th>Fonte</th>
                 <th>Acoes</th>

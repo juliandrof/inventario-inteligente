@@ -173,7 +173,7 @@ function VideoReview({ navigate, pageParams }) {
               {video.overall_risk != null && (
                 <div className={`stat-card ${video.overall_risk >= 7 ? 'danger' : video.overall_risk >= 4 ? 'warning' : ''}`}>
                   <div className="stat-value">{typeof video.overall_risk === 'number' ? video.overall_risk.toFixed(1) : video.overall_risk}</div>
-                  <div className="stat-label">Risco Geral</div>
+                  <div className="stat-label">Score Geral</div>
                 </div>
               )}
             </div>
