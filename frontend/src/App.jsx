@@ -8,16 +8,17 @@ import Configurations from './pages/Configurations';
 import BrandingSettings from './pages/BrandingSettings';
 import Reports from './pages/Reports';
 import { fetchBranding } from './api';
+import { useI18n } from './i18n';
 
-const PAGES = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'chart' },
-  { key: 'upload', label: 'Upload de Video', icon: 'upload' },
-  { key: 'batch', label: 'Processamento Batch', icon: 'batch' },
-  { key: 'videos', label: 'Videos Processados', icon: 'list' },
-  { key: 'review', label: 'Revisao', icon: 'review' },
-  { key: 'reports', label: 'Relatorio', icon: 'list' },
-  { key: 'config', label: 'Contextos', icon: 'config' },
-  { key: 'branding', label: 'Visual / Marca', icon: 'palette' },
+const PAGE_KEYS = [
+  { key: 'dashboard', labelKey: 'menu.dashboard', icon: 'chart' },
+  { key: 'upload', labelKey: 'menu.upload', icon: 'upload' },
+  { key: 'batch', labelKey: 'menu.batch', icon: 'batch' },
+  { key: 'videos', labelKey: 'menu.videos', icon: 'list' },
+  { key: 'review', labelKey: 'menu.review', icon: 'review' },
+  { key: 'reports', labelKey: 'menu.reports', icon: 'list' },
+  { key: 'config', labelKey: 'menu.contexts', icon: 'config' },
+  { key: 'branding', labelKey: 'menu.branding', icon: 'palette' },
 ];
 
 const PAGE_COMPONENTS = {
@@ -35,14 +36,11 @@ const ICONS = {
   palette: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2"/><circle cx="7" cy="8" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/><circle cx="10" cy="13" r="1.5" fill="currentColor"/></svg>,
 };
 
-const DEFAULT_COLORS = {
-  primary_color: '#2563EB',
-  secondary_color: '#1E293B',
-  accent_color: '#3B82F6',
-  sidebar_color: '#0F172A',
-};
+const LANGS = [{ code: 'pt', flag: 'PT' }, { code: 'en', flag: 'EN' }, { code: 'es', flag: 'ES' }];
+const DEFAULT_COLORS = { primary_color: '#2563EB', secondary_color: '#1E293B', accent_color: '#3B82F6', sidebar_color: '#0F172A' };
 
 function App() {
+  const { t, lang, setLanguage } = useI18n();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pageParams, setPageParams] = useState({});
   const [colors, setColors] = useState(DEFAULT_COLORS);
@@ -50,9 +48,9 @@ function App() {
 
   useEffect(() => {
     fetchBranding().then(b => {
-      const newColors = { ...DEFAULT_COLORS };
-      Object.keys(DEFAULT_COLORS).forEach(k => { if (b[k]) newColors[k] = b[k]; });
-      setColors(newColors);
+      const c = { ...DEFAULT_COLORS };
+      Object.keys(DEFAULT_COLORS).forEach(k => { if (b[k]) c[k] = b[k]; });
+      setColors(c);
       if (b.logo_path) setCustomLogo(b.logo_path);
     }).catch(() => {});
   }, [currentPage]);
@@ -68,32 +66,40 @@ function App() {
 
   return (
     <div className="app-layout" style={{
-      '--dbxsc-primary': colors.primary_color,
-      '--dbxsc-dark': colors.secondary_color,
-      '--dbxsc-accent': colors.accent_color,
-      '--dbxsc-sidebar': colors.sidebar_color,
+      '--dbxsc-primary': colors.primary_color, '--dbxsc-dark': colors.secondary_color,
+      '--dbxsc-accent': colors.accent_color, '--dbxsc-sidebar': colors.sidebar_color,
     }}>
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            {customLogo ? (
-              <img src="/api/branding/logo" alt="Logo" className="custom-logo" />
-            ) : (
-              <DBXSCLogo />
-            )}
+            {customLogo ? <img src="/api/branding/logo" alt="Logo" className="custom-logo" /> : <DBXSCLogo />}
           </div>
           <div className=sidebar-subtitle">DBXSC AI</div>
         </div>
         <nav className="sidebar-nav">
-          {PAGES.map(page => (
+          {PAGE_KEYS.map(page => (
             <a key={page.key} href="#" className={currentPage === page.key ? 'active' : ''}
-              onClick={(e) => { e.preventDefault(); navigate(page.key); }}>
+              onClick={e => { e.preventDefault(); navigate(page.key); }}>
               <span className="nav-icon">{ICONS[page.icon]}</span>
-              <span>{page.label}</span>
+              <span>{t(page.labelKey)}</span>
             </a>
           ))}
         </nav>
-        <div className="sidebar-footer">DBXSC AI v1.0 - Driver Safety Monitoring</div>
+        {/* Language selector */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', gap: 6, justifyContent: 'center' }}>
+          {LANGS.map(l => (
+            <button key={l.code} onClick={() => setLanguage(l.code)}
+              style={{
+                padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+                background: lang === l.code ? 'var(--dbxsc-primary)' : 'rgba(255,255,255,0.1)',
+                color: 'white', transition: 'background 0.2s',
+              }}>
+              {l.flag}
+            </button>
+          ))}
+        </div>
+        <div className="sidebar-footer">{t('menu.footer')}</div>
       </aside>
       <main className="main-content">
         <PageComponent key={`${currentPage}-${pageKey}`} navigate={navigate} pageParams={pageParams} />
