@@ -47,7 +47,7 @@ export const rejectDetection = (id, notes) => request(`/review/${id}/reject`, {
   method: 'POST', body: JSON.stringify({ notes }),
 });
 export const fetchPendingReviews = () => request('/review/pending');
-export const fetchPendingVideos = () => request('/review/pending-videos');
+export const fetchPendingVideos = (f={}) => request('/review/pending-videos' + qs(f));
 export const fetchReviewLog = () => request('/review/log');
 
 // Batch

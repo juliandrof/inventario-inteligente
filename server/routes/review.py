@@ -49,9 +49,20 @@ async def pending_reviews():
 
 
 @router.get("/pending-videos")
-async def pending_videos():
+async def pending_videos(context_name: Optional[str] = None, upload_from: Optional[str] = None, upload_to: Optional[str] = None):
     """Videos that have at least one pending detection (grouped by video)."""
-    return execute_query("""
+    where_extra = ""
+    params = {}
+    if context_name:
+        where_extra += " AND v.context_name = %(context_name)s"
+        params["context_name"] = context_name
+    if upload_from:
+        where_extra += " AND v.upload_timestamp >= %(upload_from)s::timestamp"
+        params["upload_from"] = upload_from
+    if upload_to:
+        where_extra += " AND v.upload_timestamp < (%(upload_to)s::date + interval '1 day')"
+        params["upload_to"] = upload_to
+    return execute_query(f"""
         SELECT v.video_id, v.filename, v.duration_seconds, v.context_name, v.context_color,
                ar.overall_risk, ar.scores_json, ar.total_detections,
                COUNT(d.detection_id) FILTER (WHERE d.review_status = 'PENDING') as pending_count,
@@ -62,12 +73,12 @@ async def pending_videos():
         FROM videos v
         JOIN analysis_results ar ON v.video_id = ar.video_id
         JOIN detections d ON v.video_id = d.video_id
-        WHERE ar.overall_risk > 0
+        WHERE ar.overall_risk > 0{where_extra}
         GROUP BY v.video_id, v.filename, v.duration_seconds, v.context_name, v.context_color,
                  ar.overall_risk, ar.scores_json, ar.total_detections
         HAVING COUNT(d.detection_id) FILTER (WHERE d.review_status = 'PENDING') > 0
         ORDER BY ar.overall_risk DESC
-    """)
+    """, params if params else None)
 
 
 @router.get("/log")

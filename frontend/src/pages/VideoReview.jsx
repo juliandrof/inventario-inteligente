@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { fetchVideo, fetchDetections, fetchPendingVideos, fetchContexts, confirmDetection, rejectDetection } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
+}
+
 function VideoReview({ navigate, pageParams }) {
   const { t } = useI18n();
   const [videoId, setVideoId] = useState(pageParams.videoId || null);
@@ -11,10 +17,16 @@ function VideoReview({ navigate, pageParams }) {
   const [contexts, setContexts] = useState([]);
   const [contextFilter, setContextFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [datePeriod, setDatePeriod] = useState('ALL');
+  const [uploadFrom, setUploadFrom] = useState('');
+  const [uploadTo, setUploadTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeDetection, setActiveDetection] = useState(null);
   const [notes, setNotes] = useState({});
   const videoRef = useRef(null);
+
+  const resolvedFrom = datePeriod === 'CUSTOM' ? uploadFrom : datePeriod === '30' ? daysAgo(30) : datePeriod === '60' ? daysAgo(60) : datePeriod === '90' ? daysAgo(90) : '';
+  const resolvedTo = datePeriod === 'CUSTOM' ? uploadTo : '';
 
   useEffect(() => {
     if (pageParams.videoId) setVideoId(pageParams.videoId);
@@ -44,13 +56,17 @@ function VideoReview({ navigate, pageParams }) {
       interval = setInterval(load, 3000);
     } else {
       fetchContexts().then(setContexts).catch(() => {});
-      fetchPendingVideos()
+      const params = {};
+      if (contextFilter) params.context_name = contextFilter;
+      if (resolvedFrom) params.upload_from = resolvedFrom;
+      if (resolvedTo) params.upload_to = resolvedTo;
+      fetchPendingVideos(params)
         .then(setPendingVideos)
         .catch(() => setPendingVideos([]))
         .finally(() => setLoading(false));
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [videoId]);
+  }, [videoId, contextFilter, datePeriod, uploadFrom, uploadTo]);
 
   const seekTo = (timestamp) => {
     if (videoRef.current) {
@@ -76,7 +92,6 @@ function VideoReview({ navigate, pageParams }) {
   // ==================== VIDEO LIST (no video selected) ====================
   if (!videoId) {
     const filteredPending = pendingVideos.filter(v => {
-      if (contextFilter && v.context_name !== contextFilter) return false;
       if (search && !v.filename.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
@@ -89,8 +104,8 @@ function VideoReview({ navigate, pageParams }) {
         </div>
 
         {/* Filters */}
-        {pendingVideos.length > 0 && (
-          <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
             <input type="text" placeholder={t('reports.search')} value={search} onChange={e => setSearch(e.target.value)}
               style={{ flex: 1, minWidth: 180, padding: '9px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 14 }} />
             {contexts.length > 0 && (
@@ -101,7 +116,32 @@ function VideoReview({ navigate, pageParams }) {
               </select>
             )}
           </div>
-        )}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>{t('reports.period')}</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['ALL',t('reports.all')],['30',t('reports.days_30')],['60',t('reports.days_60')],['90',t('reports.days_90')],['CUSTOM',t('reports.custom')]].map(([k,l]) => (
+                  <button key={k} className={`btn btn-sm ${datePeriod === k ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => { setDatePeriod(k); if (k !== 'CUSTOM') { setUploadFrom(''); setUploadTo(''); } }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {datePeriod === 'CUSTOM' && (
+              <>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>{t('reports.from')}</label>
+                  <input type="date" value={uploadFrom} onChange={e => setUploadFrom(e.target.value)}
+                    style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>{t('reports.to')}</label>
+                  <input type="date" value={uploadTo} onChange={e => setUploadTo(e.target.value)}
+                    style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 }} />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
         {filteredPending.length === 0 ? (
           <div className="empty-state">
