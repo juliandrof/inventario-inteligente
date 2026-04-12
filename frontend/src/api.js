@@ -89,6 +89,13 @@ export const fetchReportVideos = (params = {}) => {
   return request(`/reports/videos${qs ? '?' + qs : ''}`);
 };
 
+// Streaming
+export const startStream = (streamUrl, contextId) => request('/stream/start', {
+  method: 'POST', body: JSON.stringify({ stream_url: streamUrl, context_id: contextId }),
+});
+export const stopStream = (id) => request(`/stream/${id}/stop`, { method: 'POST' });
+export const fetchStreams = () => request('/stream');
+
 // Catalog Browser
 export const fetchCatalogs = () => request('/catalog/catalogs');
 export const fetchSchemas = (catalog) => request(`/catalog/schemas/${catalog}`);
