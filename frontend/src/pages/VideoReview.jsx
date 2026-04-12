@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchVideo, fetchDetections, fetchPendingReviews, confirmDetection, rejectDetection } from '../api';
+import { fetchVideo, fetchDetections, fetchPendingVideos, confirmDetection, rejectDetection } from '../api';
 
 function VideoReview({ navigate, pageParams }) {
   const [videoId, setVideoId] = useState(pageParams.videoId || null);
   const [video, setVideo] = useState(null);
   const [detections, setDetections] = useState([]);
-  const [pendingList, setPendingList] = useState([]);
+  const [pendingVideos, setPendingVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeDetection, setActiveDetection] = useState(null);
   const [notes, setNotes] = useState({});
@@ -27,9 +27,9 @@ function VideoReview({ navigate, pageParams }) {
         setLoading(false);
       });
     } else {
-      fetchPendingReviews()
-        .then(setPendingList)
-        .catch(() => setPendingList([]))
+      fetchPendingVideos()
+        .then(setPendingVideos)
+        .catch(() => setPendingVideos([]))
         .finally(() => setLoading(false));
     }
   }, [videoId]);
@@ -55,46 +55,89 @@ function VideoReview({ navigate, pageParams }) {
 
   if (loading) return <div className="loading"><div className="spinner"></div>Carregando...</div>;
 
-  // If no video selected, show pending reviews list
+  // ==================== VIDEO LIST (no video selected) ====================
   if (!videoId) {
     return (
       <div>
         <div className="page-header">
-          <h1>Revisao de Deteccoes</h1>
-          <p>{pendingList.length} deteccoes pendentes de revisao</p>
+          <h1>Revisao</h1>
+          <p>{pendingVideos.length} video(s) aguardando revisao</p>
         </div>
 
-        {pendingList.length === 0 ? (
+        {pendingVideos.length === 0 ? (
           <div className="empty-state">
-            <h3>Nenhuma deteccao pendente</h3>
-            <p>Todos os videos foram revisados ou nenhum video foi processado ainda</p>
+            <h3>Nenhum video pendente de revisao</h3>
+            <p>Videos com score 0 (sem deteccoes) vao direto para o relatorio.</p>
           </div>
         ) : (
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table className="data-table">
-              <thead>
-                <tr><th>Arquivo</th><th>Categoria</th><th>Score</th><th>Momento</th><th>Descricao IA</th></tr>
-              </thead>
-              <tbody>
-                {pendingList.map((d, i) => (
-                  <tr key={i} className="clickable" onClick={() => setVideoId(d.video_id)}>
-                    <td style={{ fontWeight: 500 }}>{d.filename}</td>
-                    <td><span className="category-tag" style={{ textTransform: 'capitalize' }}>{d.category}</span></td>
-                    <td><span className={`score-gauge ${getScoreClass(d.score)}`}>{d.score}</span></td>
-                    <td>{formatTime(d.timestamp_sec)}</td>
-                    <td style={{ fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {d.ai_description}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            {pendingVideos.map((v, i) => (
+              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.2s' }}
+                onClick={() => setVideoId(v.video_id)}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                {/* Thumbnail */}
+                <div style={{ height: 160, background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  {v.first_thumbnail ? (
+                    <img src={`/api/thumbnails/${v.first_thumbnail}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="#555" strokeWidth="2"/><path d="M20 16l12 8-12 8V16z" fill="#555"/></svg>
+                  )}
+                  {/* Score badge */}
+                  <div style={{
+                    position: 'absolute', top: 10, right: 10,
+                    width: 44, height: 44, borderRadius: '50%',
+                    background: getScoreColor(v.overall_risk || 0),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontWeight: 700, fontSize: 16,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  }}>
+                    {typeof v.overall_risk === 'number' ? v.overall_risk.toFixed(1) : v.overall_risk || 0}
+                  </div>
+                  {/* Pending count */}
+                  <div style={{
+                    position: 'absolute', bottom: 10, left: 10,
+                    background: 'rgba(0,0,0,0.7)', color: 'white',
+                    padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500,
+                  }}>
+                    {v.pending_count} pendente(s)
+                  </div>
+                </div>
+                {/* Info */}
+                <div style={{ padding: 16 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{v.filename}</div>
+                  <div style={{ fontSize: 12, color: '#999', display: 'flex', gap: 12 }}>
+                    <span>{v.total_detections || 0} deteccoes</span>
+                    {v.duration_seconds && <span>{Math.round(v.duration_seconds)}s</span>}
+                  </div>
+                  {v.scores_json && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      {(() => {
+                        try {
+                          const scores = JSON.parse(v.scores_json);
+                          return Object.entries(scores).map(([cat, score]) => (
+                            <span key={cat} style={{
+                              fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                              background: score >= 4 ? '#fff3cd' : '#e8f5e9',
+                              color: score >= 4 ? '#856404' : '#2e7d32', fontWeight: 500, textTransform: 'capitalize',
+                            }}>
+                              {cat}: {score}
+                            </span>
+                          ));
+                        } catch { return null; }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
     );
   }
 
+  // ==================== VIDEO DETAIL (video selected) ====================
   const pendingDetections = detections.filter(d => d.review_status === 'PENDING');
   const reviewedDetections = detections.filter(d => d.review_status !== 'PENDING');
 
@@ -106,7 +149,6 @@ function VideoReview({ navigate, pageParams }) {
           <p>
             {video?.status && <span className={`badge badge-${video.status.toLowerCase()}`}>{video.status}</span>}
             {video?.duration_seconds && <span style={{ marginLeft: 12, fontSize: 13, color: '#999' }}>Duracao: {Math.round(video.duration_seconds)}s</span>}
-            {video?.resolution && <span style={{ marginLeft: 12, fontSize: 13, color: '#999' }}>{video.resolution}</span>}
           </p>
         </div>
         <button className="btn btn-secondary" onClick={() => setVideoId(null)}>Voltar</button>
@@ -128,7 +170,7 @@ function VideoReview({ navigate, pageParams }) {
                   ));
                 } catch { return null; }
               })()}
-              {video.overall_risk && (
+              {video.overall_risk != null && (
                 <div className={`stat-card ${video.overall_risk >= 7 ? 'danger' : video.overall_risk >= 4 ? 'warning' : ''}`}>
                   <div className="stat-value">{typeof video.overall_risk === 'number' ? video.overall_risk.toFixed(1) : video.overall_risk}</div>
                   <div className="stat-label">Risco Geral</div>
@@ -139,25 +181,17 @@ function VideoReview({ navigate, pageParams }) {
 
           <div className="video-review-layout">
             <div className="video-player-section">
-              {/* Video Player */}
-              <video
-                ref={videoRef}
-                controls
-                src={`/api/videos/${videoId}/stream`}
-                style={{ width: '100%', borderRadius: 12, background: '#000' }}
-              />
+              <video ref={videoRef} controls src={`/api/videos/${videoId}/stream`}
+                style={{ width: '100%', borderRadius: 12, background: '#000' }} />
 
-              {/* Thumbnail Strip */}
               {detections.length > 0 && (
                 <div className="card" style={{ marginTop: 12 }}>
                   <div className="card-title">Momentos Detectados ({detections.length})</div>
                   <div className="thumbnail-strip">
                     {detections.map((d, i) => (
-                      <div
-                        key={i}
+                      <div key={i}
                         className={`thumbnail-item ${activeDetection === d.detection_id ? 'active' : ''}`}
-                        onClick={() => { seekTo(d.timestamp_sec); setActiveDetection(d.detection_id); }}
-                      >
+                        onClick={() => { seekTo(d.timestamp_sec); setActiveDetection(d.detection_id); }}>
                         {d.thumbnail_path ? (
                           <img src={`/api/thumbnails/${d.thumbnail_path}`} alt={`t=${d.timestamp_sec}s`} />
                         ) : (
@@ -166,9 +200,7 @@ function VideoReview({ navigate, pageParams }) {
                           </div>
                         )}
                         <div className="thumb-time">{formatTime(d.timestamp_sec)}</div>
-                        <div className={`thumb-score ${getScoreClass(d.score)}`} style={{ background: getScoreColor(d.score) }}>
-                          {d.score}
-                        </div>
+                        <div className="thumb-score" style={{ background: getScoreColor(d.score) }}>{d.score}</div>
                       </div>
                     ))}
                   </div>
@@ -176,53 +208,35 @@ function VideoReview({ navigate, pageParams }) {
               )}
             </div>
 
-            {/* Detection Panel */}
             <div className="detection-panel">
               {pendingDetections.length > 0 && (
                 <>
-                  <h3 style={{ fontSize: 14, marginBottom: 12, color: 'var(--dbxsc-warning)' }}>
-                    Pendentes de Revisao ({pendingDetections.length})
+                  <h3 style={{ fontSize: 14, marginBottom: 12, color: 'var(--dbxsc-warning, #f39c12)' }}>
+                    Pendentes ({pendingDetections.length})
                   </h3>
-                  {pendingDetections.map((d, i) => (
-                    <DetectionCard
-                      key={d.detection_id}
-                      detection={d}
-                      notes={notes}
-                      setNotes={setNotes}
-                      onConfirm={handleConfirm}
-                      onReject={handleReject}
-                      onSeek={seekTo}
-                      active={activeDetection === d.detection_id}
-                      onActivate={() => setActiveDetection(d.detection_id)}
-                    />
+                  {pendingDetections.map(d => (
+                    <DetectionCard key={d.detection_id} detection={d} notes={notes} setNotes={setNotes}
+                      onConfirm={handleConfirm} onReject={handleReject} onSeek={seekTo}
+                      active={activeDetection === d.detection_id} onActivate={() => setActiveDetection(d.detection_id)} />
                   ))}
                 </>
               )}
-
               {reviewedDetections.length > 0 && (
                 <>
                   <h3 style={{ fontSize: 14, marginBottom: 12, marginTop: 24, color: '#999' }}>
-                    Ja Revisados ({reviewedDetections.length})
+                    Revisados ({reviewedDetections.length})
                   </h3>
-                  {reviewedDetections.map((d, i) => (
-                    <DetectionCard
-                      key={d.detection_id}
-                      detection={d}
-                      notes={notes}
-                      setNotes={setNotes}
-                      onSeek={seekTo}
-                      reviewed
-                      active={activeDetection === d.detection_id}
-                      onActivate={() => setActiveDetection(d.detection_id)}
-                    />
+                  {reviewedDetections.map(d => (
+                    <DetectionCard key={d.detection_id} detection={d} notes={notes} setNotes={setNotes}
+                      onSeek={seekTo} reviewed active={activeDetection === d.detection_id}
+                      onActivate={() => setActiveDetection(d.detection_id)} />
                   ))}
                 </>
               )}
-
               {detections.length === 0 && (
                 <div className="empty-state" style={{ padding: 20 }}>
                   <h3>Nenhuma deteccao</h3>
-                  <p>Nenhum sinal de risco foi identificado neste video</p>
+                  <p>Nenhum sinal de risco identificado</p>
                 </div>
               )}
             </div>
@@ -252,87 +266,51 @@ function VideoReview({ navigate, pageParams }) {
 }
 
 function DetectionCard({ detection: d, notes, setNotes, onConfirm, onReject, onSeek, reviewed, active, onActivate }) {
-  const riskClass = d.score >= 7 ? 'high-risk' : d.score >= 4 ? 'medium-risk' : '';
-
   return (
-    <div className={`detection-card ${riskClass} ${active ? 'active' : ''}`} onClick={onActivate}>
+    <div className={`detection-card ${d.score >= 7 ? 'high-risk' : d.score >= 4 ? 'medium-risk' : ''} ${active ? 'active' : ''}`} onClick={onActivate}>
       <div className="detection-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className={`score-gauge ${getScoreClass(d.score)}`} style={{ width: 32, height: 32, fontSize: 12 }}>
-            {d.score}
-          </span>
+          <span className={`score-gauge ${getScoreClass(d.score)}`} style={{ width: 32, height: 32, fontSize: 12 }}>{d.score}</span>
           <div>
             <div className="detection-category">{d.category}</div>
-            <div className="detection-time" style={{ cursor: 'pointer', color: 'var(--dbxsc-primary)' }} onClick={(e) => { e.stopPropagation(); onSeek(d.timestamp_sec); }}>
+            <div className="detection-time" style={{ cursor: 'pointer', color: 'var(--dbxsc-primary)' }}
+              onClick={e => { e.stopPropagation(); onSeek(d.timestamp_sec); }}>
               {formatTime(d.timestamp_sec)}
             </div>
           </div>
         </div>
         {d.review_status !== 'PENDING' && (
-          <span className={`badge badge-${d.review_status.toLowerCase()}`}>{d.review_status}</span>
+          <span className={`badge badge-${d.review_status.toLowerCase()}`}>
+            {d.review_status === 'CONFIRMED' ? 'Confirmado' : 'Rejeitado'}
+          </span>
         )}
       </div>
-
-      {d.ai_description && (
-        <div className="detection-description">{d.ai_description}</div>
+      {d.ai_description && <div className="detection-description">{d.ai_description}</div>}
+      {d.confidence != null && (
+        <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>Confianca: {(d.confidence * 100).toFixed(0)}%</div>
       )}
-
-      {d.confidence && (
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>
-          Confianca: {(d.confidence * 100).toFixed(0)}%
-        </div>
-      )}
-
       {!reviewed && (
         <>
           <div className="form-group" style={{ marginBottom: 8 }}>
-            <textarea
-              placeholder="Observacoes manuais (opcional)..."
-              value={notes[d.detection_id] || ''}
-              onChange={(e) => setNotes({ ...notes, [d.detection_id]: e.target.value })}
-              style={{ minHeight: 50, fontSize: 12 }}
-              onClick={(e) => e.stopPropagation()}
-            />
+            <textarea placeholder="Observacoes manuais (opcional)..." value={notes[d.detection_id] || ''}
+              onChange={e => setNotes({ ...notes, [d.detection_id]: e.target.value })}
+              style={{ minHeight: 50, fontSize: 12 }} onClick={e => e.stopPropagation()} />
           </div>
           <div className="detection-actions">
-            <button className="btn btn-sm btn-success" onClick={(e) => { e.stopPropagation(); onConfirm(d.detection_id); }}>
-              Confirmar
-            </button>
-            <button className="btn btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); onReject(d.detection_id); }}>
-              Rejeitar
-            </button>
+            <button className="btn btn-sm btn-success" onClick={e => { e.stopPropagation(); onConfirm(d.detection_id); }}>Confirmar</button>
+            <button className="btn btn-sm btn-danger" onClick={e => { e.stopPropagation(); onReject(d.detection_id); }}>Rejeitar</button>
           </div>
         </>
       )}
-
       {reviewed && d.reviewer_notes && (
-        <div style={{ fontSize: 12, color: '#666', marginTop: 8, fontStyle: 'italic' }}>
-          Nota: {d.reviewer_notes}
-        </div>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 8, fontStyle: 'italic' }}>Nota: {d.reviewer_notes}</div>
       )}
     </div>
   );
 }
 
-function getScoreClass(score) {
-  if (score <= 3) return 'score-low';
-  if (score <= 6) return 'score-medium';
-  if (score <= 8) return 'score-high';
-  return 'score-critical';
-}
-
-function getScoreColor(score) {
-  if (score <= 3) return '#27ae60';
-  if (score <= 6) return '#f39c12';
-  if (score <= 8) return '#e67e22';
-  return '#e74c3c';
-}
-
-function formatTime(sec) {
-  if (!sec && sec !== 0) return '-';
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
+function getScoreClass(s) { return s <= 3 ? 'score-low' : s <= 6 ? 'score-medium' : s <= 8 ? 'score-high' : 'score-critical'; }
+function getScoreColor(s) { return s <= 3 ? '#27ae60' : s <= 6 ? '#f39c12' : s <= 8 ? '#e67e22' : '#e74c3c'; }
+function formatTime(sec) { if (!sec && sec !== 0) return '-'; const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return `${m}:${String(s).padStart(2, '0')}`; }
 
 export default VideoReview;

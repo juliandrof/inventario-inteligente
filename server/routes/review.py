@@ -48,6 +48,28 @@ async def pending_reviews():
     """)
 
 
+@router.get("/pending-videos")
+async def pending_videos():
+    """Videos that have at least one pending detection (grouped by video)."""
+    return execute_query("""
+        SELECT v.video_id, v.filename, v.duration_seconds,
+               ar.overall_risk, ar.scores_json, ar.total_detections,
+               COUNT(d.detection_id) FILTER (WHERE d.review_status = 'PENDING') as pending_count,
+               (SELECT d2.thumbnail_path FROM detections d2
+                WHERE d2.video_id = v.video_id AND d2.thumbnail_path IS NOT NULL
+                ORDER BY d2.score DESC LIMIT 1) as first_thumbnail,
+               MAX(d.score) as max_score
+        FROM videos v
+        JOIN analysis_results ar ON v.video_id = ar.video_id
+        JOIN detections d ON v.video_id = d.video_id
+        WHERE ar.overall_risk > 0
+        GROUP BY v.video_id, v.filename, v.duration_seconds,
+                 ar.overall_risk, ar.scores_json, ar.total_detections
+        HAVING COUNT(d.detection_id) FILTER (WHERE d.review_status = 'PENDING') > 0
+        ORDER BY ar.overall_risk DESC
+    """)
+
+
 @router.get("/log")
 async def review_log():
     return execute_query("""
