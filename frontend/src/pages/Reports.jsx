@@ -72,8 +72,26 @@ function Reports({ navigate }) {
         </div>
 
         <div className="card">
-          <video controls src={`/api/videos/${selectedVideo.video_id}/stream`}
-            style={{ width: '100%', maxHeight: 400, borderRadius: 8, background: '#000' }} />
+          {selectedVideo.source === 'STREAM' ? (
+            detections.filter(d => d.thumbnail_path).length > 0 ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: 8 }}>
+                {detections.filter(d => d.thumbnail_path).map((d, i) => (
+                  <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}>
+                    <img src={`/api/thumbnails/${d.thumbnail_path}`} alt={`${d.category} ${fmtTime(d.timestamp_sec)}`}
+                      style={{ width: 160, height: 100, objectFit: 'cover' }} />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'rgba(0,0,0,0.7)', color: 'white', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{d.category}</span><span>{fmtTime(d.timestamp_sec)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#999', padding: 20, textAlign: 'center' }}>{t('reports.stream_no_file')}</p>
+            )
+          ) : (
+            <video controls src={`/api/videos/${selectedVideo.video_id}/stream`}
+              style={{ width: '100%', maxHeight: 400, borderRadius: 8, background: '#000' }} />
+          )}
         </div>
 
         {selectedVideo.scores_json && (
