@@ -137,9 +137,9 @@ class BatchManager:
                     execute_update(f"""
                         INSERT INTO videos
                         (video_id, filename, volume_path, file_size_bytes, duration_seconds, fps,
-                         resolution, upload_timestamp, status, source, uploaded_by)
+                         resolution, upload_timestamp, status, source, uploaded_by, context_id, context_name)
                         VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s,
-                                %(res)s, NOW(), 'PENDING', 'BATCH', %(user)s)
+                                %(res)s, NOW(), 'PENDING', 'BATCH', %(user)s, %(cid)s, %(cname)s)
                     """, {
                         "vid": video_id,
                         "name": vf["name"],
@@ -149,6 +149,8 @@ class BatchManager:
                         "fps": meta.get("fps", 0),
                         "res": meta.get("resolution", ""),
                         "user": user,
+                        "cid": config.get("context_id") or None,
+                        "cname": config.get("context_name"),
                     })
 
                     # Track video_id in batch state

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { startBatch, fetchBatches, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
+import { startBatch, fetchBatches, fetchCatalogs, fetchSchemas, fetchVolumes, fetchContexts } from '../api';
 
 function BatchProcessing({ navigate }) {
   const [volumePath, setVolumePath] = useState('');
@@ -8,6 +8,8 @@ function BatchProcessing({ navigate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewVideoId, setPreviewVideoId] = useState(null);
+  const [contexts, setContexts] = useState([]);
+  const [contextId, setContextId] = useState(0);
   const eventSourceRef = useRef(null);
   const [showBrowser, setShowBrowser] = useState(false);
   const [catalogs, setCatalogs] = useState([]);
@@ -18,6 +20,7 @@ function BatchProcessing({ navigate }) {
 
   useEffect(() => {
     fetchBatches().then(setBatches).catch(() => {});
+    fetchContexts().then(setContexts).catch(() => {});
     return () => {
       if (eventSourceRef.current) eventSourceRef.current.close();
     };
@@ -29,7 +32,7 @@ function BatchProcessing({ navigate }) {
     setLoading(true);
 
     try {
-      const res = await startBatch(volumePath.trim());
+      const res = await startBatch(volumePath.trim(), contextId);
       setBatch(res);
 
       // Start SSE for progress
@@ -123,6 +126,18 @@ function BatchProcessing({ navigate }) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Context selector */}
+        {contexts.length > 0 && (
+          <div className="form-group">
+            <label>Contexto de Analise</label>
+            <select value={contextId} onChange={e => setContextId(Number(e.target.value))}
+              style={{ maxWidth: 400 }}>
+              <option value={0}>-- Selecione um contexto --</option>
+              {contexts.map(c => <option key={c.context_id} value={c.context_id}>{c.name}</option>)}
+            </select>
           </div>
         )}
 

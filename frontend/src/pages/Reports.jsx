@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchReportVideos, fetchDetections } from '../api';
+import { fetchReportVideos, fetchDetections, fetchContexts } from '../api';
 
 function Reports({ navigate }) {
   const [data, setData] = useState({ items: [], total: 0, page: 1, total_pages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState('ALL');
+  const [contextFilter, setContextFilter] = useState('');
+  const [contexts, setContexts] = useState([]);
   const [uploadFrom, setUploadFrom] = useState('');
   const [uploadTo, setUploadTo] = useState('');
   const [reviewFrom, setReviewFrom] = useState('');
@@ -14,11 +16,14 @@ function Reports({ navigate }) {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [detections, setDetections] = useState([]);
 
+  useEffect(() => { fetchContexts().then(setContexts).catch(() => {}); }, []);
+
   const loadData = useCallback((p = page) => {
     setLoading(true);
     const params = { page: p, per_page: 20 };
     if (search) params.search = search;
     if (riskFilter !== 'ALL') params.risk_filter = riskFilter;
+    if (contextFilter) params.context_name = contextFilter;
     if (uploadFrom) params.upload_from = uploadFrom;
     if (uploadTo) params.upload_to = uploadTo;
     if (reviewFrom) params.review_from = reviewFrom;
@@ -30,7 +35,7 @@ function Reports({ navigate }) {
       .finally(() => setLoading(false));
   }, [search, riskFilter, uploadFrom, uploadTo, reviewFrom, reviewTo, page]);
 
-  useEffect(() => { loadData(1); }, [search, riskFilter, uploadFrom, uploadTo, reviewFrom, reviewTo]);
+  useEffect(() => { loadData(1); }, [search, riskFilter, contextFilter, uploadFrom, uploadTo, reviewFrom, reviewTo]);
 
   const handlePage = (p) => { setPage(p); loadData(p); };
 
@@ -140,6 +145,18 @@ function Reports({ navigate }) {
           ))}
         </div>
 
+        {/* Context filter */}
+        {contexts.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, fontWeight: 500, marginRight: 8 }}>Contexto:</label>
+            <select value={contextFilter} onChange={e => setContextFilter(e.target.value)}
+              style={{ padding: '7px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, minWidth: 180 }}>
+              <option value="">Todos os contextos</option>
+              {contexts.map(c => <option key={c.context_id} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+
         {/* Date filters */}
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <div>
@@ -184,12 +201,13 @@ function Reports({ navigate }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="data-table">
               <thead>
-                <tr><th>Arquivo</th><th>Duracao</th><th>Risco</th><th>Deteccoes</th><th>Scores</th><th>Upload</th><th>Acoes</th></tr>
+                <tr><th>Arquivo</th><th>Contexto</th><th>Duracao</th><th>Risco</th><th>Deteccoes</th><th>Scores</th><th>Upload</th><th>Acoes</th></tr>
               </thead>
               <tbody>
                 {data.items.map((v, i) => (
                   <tr key={i} className="clickable" onClick={() => handleSelect(v)}>
                     <td style={{ fontWeight: 500 }}>{v.filename}</td>
+                    <td>{v.context_name ? <span className="badge badge-analyzing">{v.context_name}</span> : <span style={{color:'#999'}}>-</span>}</td>
                     <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                     <td>
                       {v.overall_risk != null ? (

@@ -38,14 +38,36 @@ def _get_config() -> dict:
         }
 
 
+def _get_context_config(context_id: int) -> dict:
+    """Load config from a specific context."""
+    rows = execute_query("SELECT * FROM contexts WHERE context_id = %(id)s", {"id": context_id})
+    if rows:
+        ctx = rows[0]
+        return {
+            "categories": json.loads(ctx["categories"]) if isinstance(ctx["categories"], str) else ctx["categories"],
+            "scan_prompt": ctx["scan_prompt"],
+            "scan_fps": ctx.get("scan_fps", 0.2),
+            "detail_fps": ctx.get("detail_fps", 1.0),
+            "score_threshold": ctx.get("score_threshold", 4),
+        }
+    return _get_config()
+
+
 @router.post("/upload")
-async def upload_video(file: UploadFile = File(...)):
+async def upload_video(file: UploadFile = File(...), context_id: int = 0):
     if not file.filename:
         raise HTTPException(400, "No file provided")
     allowed = ('.mp4', '.avi', '.mov', '.mkv', '.webm')
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(400, f"Invalid format. Allowed: {', '.join(allowed)}")
+
+    # Get context name
+    ctx_name = None
+    if context_id:
+        ctx_rows = execute_query("SELECT name FROM contexts WHERE context_id = %(id)s", {"id": context_id})
+        if ctx_rows:
+            ctx_name = ctx_rows[0]["name"]
 
     tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
     content = await file.read()
@@ -67,15 +89,16 @@ async def upload_video(file: UploadFile = File(...)):
 
     execute_update("""
         INSERT INTO videos (video_id, filename, volume_path, file_size_bytes, duration_seconds,
-            fps, resolution, upload_timestamp, status, source)
-        VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s, %(res)s, NOW(), 'PENDING', 'UPLOAD')
+            fps, resolution, upload_timestamp, status, source, context_id, context_name)
+        VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s, %(res)s, NOW(), 'PENDING', 'UPLOAD', %(cid)s, %(cname)s)
     """, {
         "vid": video_id, "name": file.filename, "path": volume_path,
         "size": len(content), "dur": meta.get("duration_seconds", 0),
         "fps": meta.get("fps", 0), "res": meta.get("resolution", ""),
+        "cid": context_id or None, "cname": ctx_name,
     })
 
-    config = _get_config()
+    config = _get_context_config(context_id) if context_id else _get_config()
     thread = threading.Thread(target=process_video, args=(video_id, tmp.name, config), daemon=True)
     thread.start()
     return {"video_id": video_id, "filename": file.filename, "status": "PENDING"}

@@ -16,6 +16,7 @@ router = APIRouter()
 
 class BatchStartRequest(BaseModel):
     volume_path: str
+    context_id: int = 0
 
 
 def _get_config() -> dict:
@@ -44,7 +45,28 @@ def _get_config() -> dict:
 @router.post("/start")
 async def start_batch(req: BatchStartRequest):
     """Start batch processing for all videos in a volume."""
-    config = _get_config()
+    # Load config from context if provided
+    ctx_name = None
+    if req.context_id:
+        rows = execute_query("SELECT * FROM contexts WHERE context_id = %(id)s", {"id": req.context_id})
+        if rows:
+            ctx = rows[0]
+            import json as _json
+            config = {
+                "categories": _json.loads(ctx["categories"]) if isinstance(ctx["categories"], str) else ctx["categories"],
+                "scan_prompt": ctx["scan_prompt"],
+                "scan_fps": ctx.get("scan_fps", 0.2),
+                "detail_fps": ctx.get("detail_fps", 1.0),
+                "score_threshold": ctx.get("score_threshold", 4),
+            }
+            ctx_name = ctx["name"]
+        else:
+            config = _get_config()
+    else:
+        config = _get_config()
+
+    config["context_id"] = req.context_id
+    config["context_name"] = ctx_name
     manager = BatchManager()
     batch_info = manager.start_batch(req.volume_path, config)
     return batch_info

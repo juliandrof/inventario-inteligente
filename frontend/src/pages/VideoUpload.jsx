@@ -1,8 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { uploadVideo } from '../api';
+import React, { useState, useRef, useEffect } from 'react';
+import { uploadVideo, fetchContexts } from '../api';
 
 function VideoUpload({ navigate }) {
   const [dragOver, setDragOver] = useState(false);
+  const [contexts, setContexts] = useState([]);
+  const [contextId, setContextId] = useState(0);
+  useEffect(() => { fetchContexts().then(setContexts).catch(() => {}); }, []);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
@@ -27,7 +30,7 @@ function VideoUpload({ navigate }) {
         setProgress(p => Math.min(p + 5, 90));
       }, 500);
 
-      const res = await uploadVideo(file);
+      const res = await uploadVideo(file, contextId);
       clearInterval(interval);
       setProgress(100);
       setResult(res);
@@ -51,6 +54,20 @@ function VideoUpload({ navigate }) {
         <h1>Upload de Video</h1>
         <p>Envie um video para analise de seguranca do motorista</p>
       </div>
+
+      {/* Context selector */}
+      {!result && contexts.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Contexto de Analise</label>
+            <select value={contextId} onChange={e => setContextId(Number(e.target.value))}
+              style={{ maxWidth: 400 }}>
+              <option value={0}>-- Selecione um contexto --</option>
+              {contexts.map(c => <option key={c.context_id} value={c.context_id}>{c.name}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
 
       {!result ? (
         <div

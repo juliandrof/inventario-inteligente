@@ -13,6 +13,7 @@ async def report_videos(
     per_page: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
     risk_filter: Optional[str] = None,
+    context_name: Optional[str] = None,
     upload_from: Optional[str] = None,
     upload_to: Optional[str] = None,
     review_from: Optional[str] = None,
@@ -25,6 +26,10 @@ async def report_videos(
     if search:
         conditions.append("LOWER(v.filename) LIKE LOWER(%(search)s)")
         params["search"] = f"%{search}%"
+
+    if context_name:
+        conditions.append("v.context_name = %(context_name)s")
+        params["context_name"] = context_name
 
     if risk_filter == "WITH_DETECTIONS":
         conditions.append("COALESCE(ar.total_detections, 0) > 0")
@@ -70,6 +75,7 @@ async def report_videos(
     # Fetch page
     rows = execute_query(f"""
         SELECT v.video_id, v.filename, v.duration_seconds, v.upload_timestamp,
+               v.context_name,
                ar.scores_json, ar.overall_risk, ar.total_detections, ar.analysis_timestamp
         FROM videos v
         LEFT JOIN analysis_results ar ON v.video_id = ar.video_id

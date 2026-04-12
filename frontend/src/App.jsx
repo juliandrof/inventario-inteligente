@@ -16,7 +16,7 @@ const PAGES = [
   { key: 'videos', label: 'Videos Processados', icon: 'list' },
   { key: 'review', label: 'Revisao', icon: 'review' },
   { key: 'reports', label: 'Relatorio', icon: 'list' },
-  { key: 'config', label: 'Configuracoes', icon: 'config' },
+  { key: 'config', label: 'Contextos', icon: 'config' },
   { key: 'branding', label: 'Visual / Marca', icon: 'palette' },
 ];
 

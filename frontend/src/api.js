@@ -22,10 +22,11 @@ export const fetchRiskDistribution = () => request('/dashboard/risk-distribution
 export const fetchVideos = () => request('/videos');
 export const fetchVideo = (id) => request(`/videos/${id}`);
 export const deleteVideo = (id) => request(`/videos/${id}`, { method: 'DELETE' });
-export const uploadVideo = async (file) => {
+export const uploadVideo = async (file, contextId) => {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await fetch(`${BASE_URL}/videos/upload`, { method: 'POST', body: formData });
+  const url = contextId ? `${BASE_URL}/videos/upload?context_id=${contextId}` : `${BASE_URL}/videos/upload`;
+  const res = await fetch(url, { method: 'POST', body: formData });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 };
@@ -46,9 +47,15 @@ export const fetchPendingVideos = () => request('/review/pending-videos');
 export const fetchReviewLog = () => request('/review/log');
 
 // Batch
-export const startBatch = (volumePath) => request('/batch/start', {
-  method: 'POST', body: JSON.stringify({ volume_path: volumePath }),
+export const startBatch = (volumePath, contextId) => request('/batch/start', {
+  method: 'POST', body: JSON.stringify({ volume_path: volumePath, context_id: contextId || 0 }),
 });
+
+// Contexts
+export const fetchContexts = () => request('/contexts');
+export const createContext = (data) => request('/contexts', { method: 'POST', body: JSON.stringify(data) });
+export const updateContext = (id, data) => request(`/contexts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteContext = (id) => request(`/contexts/${id}`, { method: 'DELETE' });
 export const cancelBatch = (id) => request(`/batch/${id}/cancel`, { method: 'POST' });
 export const fetchBatches = () => request('/batch');
 
