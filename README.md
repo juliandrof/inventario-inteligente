@@ -177,15 +177,13 @@ databricks apps deploy dbxsc-ai /Workspace/Users/<email>/dbxsc-ai SNAPSHOT
 
 Tables and seed data are auto-created on first startup. Configure the `app.yaml` environment variables for your Lakebase instance.
 
-## Multi-Client Deployment
+## Deploying to Another Workspace (UI)
 
-To deploy for a different client:
+For a complete step-by-step guide to deploy this app to any Databricks workspace using only the UI (no CLI required), see:
 
-1. Create a new Lakebase project
-2. Update `app.yaml` environment variables (database name, project, volumes)
-3. Deploy the app — tables auto-create on first startup
-4. Upload client logo and set colors via the Branding page
-5. Create analysis contexts via the Contexts page
+**[Deployment Guide](DEPLOYMENT_GUIDE.md)**
+
+Covers: GitHub integration, Git folder setup, Lakebase creation, environment variables, app deployment, and updating.
 
 ## API Endpoints
 
