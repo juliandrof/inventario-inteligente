@@ -1,28 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { startStream, stopStream, restartStream, updateStream, deleteStream, fetchStreamLogs, fetchStreams, fetchContexts, fetchVideos } from '../api';
+import { stopStream, restartStream, updateStream, deleteStream, fetchStreamLogs, fetchStreams, fetchVideos } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
 function Streaming({ navigate }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState('streams'); // streams | new
+  const [tab, setTab] = useState('streams');
   const [streams, setStreams] = useState([]);
   const [videos, setVideos] = useState([]);
-  const [contexts, setContexts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedStream, setExpandedStream] = useState(null);
   const [logsPanel, setLogsPanel] = useState(null); // stream_id or null
   const [logs, setLogs] = useState([]);
 
-  // New stream state
-  const [streamName, setStreamName] = useState('');
-  const [contextId, setContextId] = useState(0);
-  const [contextName, setContextName] = useState('');
-  const [contextColor, setContextColor] = useState('');
-  const [streamUrl, setStreamUrl] = useState('');
-  const [streamWindow, setStreamWindow] = useState(60);
-  const [streamUser, setStreamUser] = useState('');
-  const [streamPass, setStreamPass] = useState('');
-  const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
 
   // Edit state
@@ -37,9 +26,8 @@ function Streaming({ navigate }) {
     Promise.all([
       fetchStreams().catch(() => []),
       fetchVideos().catch(() => []),
-      fetchContexts().catch(() => []),
-    ]).then(([s, v, c]) => {
-      setStreams(s || []); setVideos(v || []); setContexts(c || []);
+    ]).then(([s, v]) => {
+      setStreams(s || []); setVideos(v || []);
       setLoading(false); loadRef.current = true;
     });
   };
@@ -89,16 +77,6 @@ function Streaming({ navigate }) {
     await deleteStream(streamId); load();
   };
 
-  const handleStart = async () => {
-    if (!streamUrl.trim() || !contextId) return;
-    setError(''); setStarting(true);
-    try {
-      await startStream(streamName.trim(), streamUrl.trim(), contextId, streamWindow, streamUser, streamPass);
-      setTab('streams'); setStreamName(''); setStreamUrl(''); setContextId(0); setStreamUser(''); setStreamPass('');
-      load();
-    } catch (e) { setError(e.message || t('common.error')); } finally { setStarting(false); }
-  };
-
   const handleSaveEdit = async (streamId) => {
     await updateStream(streamId, { name: editName, stream_url: editUrl, window_seconds: editWindow });
     setEditingId(null); load();
@@ -112,113 +90,19 @@ function Streaming({ navigate }) {
     setEditWindow(g.window_seconds || 60);
   };
 
-  const selectContext = (id) => {
-    setContextId(id);
-    const ctx = contexts.find(c => c.context_id === id);
-    setContextName(ctx ? ctx.name : '');
-    setContextColor(ctx ? ctx.color || '#2563EB' : '');
-  };
-
   if (loading) return <div className="loading"><div className="spinner"></div>{t('common.loading')}</div>;
 
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h1>{t('process.stream_title')}</h1><p>{t('streaming.subtitle')}</p></div>
-        <button className="btn btn-primary" onClick={() => { setTab(tab === 'new' ? 'streams' : 'new'); setContextId(0); setStreamUrl(''); setStreamName(''); }}>
-          {tab === 'new' ? t('review.back') : t('streaming.new')}
+        <button className="btn btn-primary" onClick={() => navigate('process')}>
+          {t('streaming.new')}
         </button>
       </div>
 
-      {/* NEW STREAM WIZARD */}
-      {tab === 'new' && (
-        <div>
-          {!contextId ? (
-            <div className="card">
-              <div className="card-title">{t('process.step1')}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginTop: 12 }}>
-                {contexts.map(ctx => {
-                  let cats = ctx.categories;
-                  if (typeof cats === 'string') try { cats = JSON.parse(cats); } catch { cats = []; }
-                  return (
-                    <div key={ctx.context_id} onClick={() => selectContext(ctx.context_id)}
-                      style={{ padding: 16, borderRadius: 12, border: '2px solid #e0e0e0', cursor: 'pointer', transition: 'all 0.2s', background: 'white' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--dbxsc-primary)'; e.currentTarget.style.transform = 'scale(1.02)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0e0e0'; e.currentTarget.style.transform = 'scale(1)'; }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{ctx.name}</div>
-                      {ctx.description && <p style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>{ctx.description}</p>}
-                      <div className="category-tags">{cats.map((c, i) => <span key={i} className="category-tag" style={{ fontSize: 11, textTransform: 'capitalize' }}>{c}</span>)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div>
-                  <span style={{ fontSize: 12, color: '#999', marginRight: 8 }}>{t('process.context')}:</span>
-                  <ContextBadge name={contextName} color={contextColor} style={{ fontSize: 13 }} />
-                </div>
-                <button className="btn btn-sm btn-secondary" onClick={() => setContextId(0)}>{t('process.change_context')}</button>
-              </div>
-              <div className="card">
-                <div className="form-group">
-                  <label>{t('streaming.stream_name')}</label>
-                  <input type="text" value={streamName} onChange={e => setStreamName(e.target.value)}
-                    placeholder={t('streaming.stream_name_placeholder')} />
-                </div>
-                <div className="form-group">
-                  <label>{t('process.stream_url')}</label>
-                  <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)}
-                    placeholder="rtsp://camera-ip:554/stream1" style={{ fontFamily: 'monospace' }} />
-                </div>
-                {streamUrl.toLowerCase().startsWith('rtsp://') && (
-                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <div className="form-group" style={{ flex: 1, minWidth: 160 }}>
-                      <label>{t('streaming.username')}</label>
-                      <input type="text" value={streamUser} onChange={e => setStreamUser(e.target.value)}
-                        placeholder="admin" autoComplete="username" />
-                    </div>
-                    <div className="form-group" style={{ flex: 1, minWidth: 160 }}>
-                      <label>{t('streaming.password')}</label>
-                      <input type="password" value={streamPass} onChange={e => setStreamPass(e.target.value)}
-                        placeholder="********" autoComplete="current-password" />
-                    </div>
-                  </div>
-                )}
-                <div className="form-group" style={{ maxWidth: 250 }}>
-                  <label>{t('process.stream_window_label')}</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="number" min="10" max="600" value={streamWindow} onChange={e => setStreamWindow(Number(e.target.value))} style={{ width: 80 }} />
-                    <span style={{ fontSize: 13, color: '#999' }}>{t('process.stream_window_unit')}</span>
-                  </div>
-                </div>
-                <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 }}>
-                  <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('process.stream_protocols')}</div>
-                  <div style={{ color: '#666', lineHeight: 1.8 }}>
-                    <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtsp://</code> — {t('process.stream_rtsp')}<br/>
-                    <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtmp://</code> — {t('process.stream_rtmp')}<br/>
-                    <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>http(s)://</code> — {t('process.stream_http')}<br/>
-                    <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>/Volumes/...</code> — {t('process.stream_mock')}
-                  </div>
-                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#e8f5e9', borderRadius: 6, color: '#2e7d32' }}>
-                    <strong>{t('process.stream_test_label')}</strong><br/>
-                    <code style={{ fontSize: 12 }}>/Volumes/jsf_dbxsc_demo/main/test_videos/motorista_fadiga_severa.mp4</code>
-                  </div>
-                </div>
-                <button className="btn btn-primary" onClick={handleStart} disabled={starting || !streamUrl.trim()}>
-                  {starting ? t('batch.starting') : t('process.stream_start')}
-                </button>
-                {error && <p style={{ color: 'var(--dbxsc-danger)', marginTop: 8, fontSize: 13 }}>{error}</p>}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* STREAMS LIST */}
-      {tab === 'streams' && (
+      {(
         groupList.length === 0 ? (
           <div className="empty-state">
             <h3>{t('streaming.no_streams')}</h3>

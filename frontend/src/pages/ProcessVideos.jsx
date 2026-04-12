@@ -1,16 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { uploadVideo, startBatch, fetchBatches, fetchContexts, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
+import { uploadVideo, startBatch, startStream, fetchBatches, fetchContexts, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
 function ProcessVideos({ navigate }) {
   const { t } = useI18n();
 
   // Wizard state
-  const [step, setStep] = useState('context'); // context | method | upload | batch | success | progress
+  const [step, setStep] = useState('context'); // context | method | upload | batch | stream | success | progress
   const [contexts, setContexts] = useState([]);
   const [contextId, setContextId] = useState(0);
   const [contextName, setContextName] = useState('');
   const [contextColor, setContextColor] = useState('');
+
+  // Stream state
+  const [streamName, setStreamName] = useState('');
+  const [streamUrl, setStreamUrl] = useState('');
+  const [streamWindow, setStreamWindow] = useState(60);
+  const [streamUser, setStreamUser] = useState('');
+  const [streamPass, setStreamPass] = useState('');
+  const [startingStream, setStartingStream] = useState(false);
 
 
   // Upload state
@@ -50,6 +58,16 @@ function ProcessVideos({ navigate }) {
   const resetWizard = () => {
     setStep('context'); setContextId(0); setContextName(''); setContextColor(''); setResult(null); setBatch(null);
     setVolumePath(''); setError(''); setProgress(0); setPreviewVideoId(null);
+    setStreamName(''); setStreamUrl(''); setStreamWindow(60); setStreamUser(''); setStreamPass('');
+  };
+
+  const handleStartStream = async () => {
+    if (!streamUrl.trim() || !contextId) return;
+    setError(''); setStartingStream(true);
+    try {
+      await startStream(streamName.trim(), streamUrl.trim(), contextId, streamWindow, streamUser, streamPass);
+      navigate('streaming');
+    } catch (e) { setError(e.message || t('common.error')); } finally { setStartingStream(false); }
   };
 
 
@@ -135,10 +153,11 @@ function ProcessVideos({ navigate }) {
 
         <div className="card">
           <div className="card-title">{t('process.step2')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 12 }}>
             {[
               { key: 'upload', icon: <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6v28M24 6l-10 10M24 6l10 10M6 34v6a2 2 0 002 2h32a2 2 0 002-2v-6" stroke="var(--dbxsc-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>, titleKey: 'process.upload_title', descKey: 'process.upload_desc' },
               { key: 'batch', icon: <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.7"/><rect x="28" y="4" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.5"/><rect x="4" y="28" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.5"/><rect x="28" y="28" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.3"/></svg>, titleKey: 'process.batch_title', descKey: 'process.batch_desc' },
+              { key: 'stream', icon: <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="6" fill="var(--dbxsc-primary)"/><path d="M14 14a14 14 0 0 1 20 0" stroke="var(--dbxsc-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.5"/><path d="M8 8a22 22 0 0 1 32 0" stroke="var(--dbxsc-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.3"/><path d="M14 34a14 14 0 0 0 20 0" stroke="var(--dbxsc-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.5"/><path d="M8 40a22 22 0 0 0 32 0" stroke="var(--dbxsc-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.3"/></svg>, titleKey: 'process.stream_title', descKey: 'process.stream_desc' },
             ].map(opt => (
               <div key={opt.key} onClick={() => setStep(opt.key)}
                 style={{ padding: 24, borderRadius: 12, border: '2px solid #e0e0e0', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s' }}
@@ -352,6 +371,63 @@ function ProcessVideos({ navigate }) {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== STREAMING ====================
+  if (step === 'stream') {
+    return (
+      <div>
+        <div className="page-header"><h1>{t('process.title')}</h1></div>
+        {contextHeader}
+        <div className="card">
+          <div className="card-title">{t('process.stream_title')}</div>
+          <div className="form-group">
+            <label>{t('streaming.stream_name')}</label>
+            <input type="text" value={streamName} onChange={e => setStreamName(e.target.value)}
+              placeholder={t('streaming.stream_name_placeholder')} />
+          </div>
+          <div className="form-group">
+            <label>{t('process.stream_url')}</label>
+            <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)}
+              placeholder="rtsp://camera-ip:554/stream1" style={{ fontFamily: 'monospace' }} />
+          </div>
+          {streamUrl.toLowerCase().startsWith('rtsp://') && (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: 160 }}>
+                <label>{t('streaming.username')}</label>
+                <input type="text" value={streamUser} onChange={e => setStreamUser(e.target.value)}
+                  placeholder="admin" autoComplete="username" />
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: 160 }}>
+                <label>{t('streaming.password')}</label>
+                <input type="password" value={streamPass} onChange={e => setStreamPass(e.target.value)}
+                  placeholder="********" autoComplete="current-password" />
+              </div>
+            </div>
+          )}
+          <div className="form-group" style={{ maxWidth: 250 }}>
+            <label>{t('process.stream_window_label')}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="number" min="10" max="600" value={streamWindow} onChange={e => setStreamWindow(Number(e.target.value))} style={{ width: 80 }} />
+              <span style={{ fontSize: 13, color: '#999' }}>{t('process.stream_window_unit')}</span>
+            </div>
+          </div>
+          <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 }}>
+            <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('process.stream_protocols')}</div>
+            <div style={{ color: '#666', lineHeight: 1.8 }}>
+              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtsp://</code> — {t('process.stream_rtsp')}<br/>
+              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtmp://</code> — {t('process.stream_rtmp')}<br/>
+              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>http(s)://</code> — {t('process.stream_http')}<br/>
+              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>/Volumes/...</code> — {t('process.stream_mock')}
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={handleStartStream} disabled={startingStream || !streamUrl.trim()}>
+            {startingStream ? t('batch.starting') : t('process.stream_start')}
+          </button>
+          {error && <p style={{ color: 'var(--dbxsc-danger)', marginTop: 8, fontSize: 13 }}>{error}</p>}
         </div>
       </div>
     );
