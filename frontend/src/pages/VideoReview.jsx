@@ -18,22 +18,34 @@ function VideoReview({ navigate, pageParams }) {
   }, [pageParams.videoId]);
 
   useEffect(() => {
+    let interval = null;
     setLoading(true);
     if (videoId) {
-      Promise.all([
-        fetchVideo(videoId).catch(() => null),
-        fetchDetections(videoId).catch(() => []),
-      ]).then(([v, d]) => {
-        setVideo(v);
-        setDetections(d || []);
-        setLoading(false);
-      });
+      const load = () => {
+        Promise.all([
+          fetchVideo(videoId).catch(() => null),
+          fetchDetections(videoId).catch(() => []),
+        ]).then(([v, d]) => {
+          setVideo(v);
+          setDetections(d || []);
+          setLoading(false);
+          // Stop polling once completed or failed
+          if (v && (v.status === 'COMPLETED' || v.status === 'FAILED') && interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        });
+      };
+      load();
+      // Poll every 3 seconds while video is processing
+      interval = setInterval(load, 3000);
     } else {
       fetchPendingVideos()
         .then(setPendingVideos)
         .catch(() => setPendingVideos([]))
         .finally(() => setLoading(false));
     }
+    return () => { if (interval) clearInterval(interval); };
   }, [videoId]);
 
   const seekTo = (timestamp) => {
