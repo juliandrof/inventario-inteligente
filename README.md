@@ -1,35 +1,66 @@
-# DBXSC AI
+# Databricks Scenic Crawler AI
 
-Generic Databricks App for AI-powered video analysis and driver safety monitoring, backed by **Lakebase** (managed PostgreSQL).
+A generic, multi-tenant Databricks App for AI-powered video analysis, backed by **Lakebase** (managed PostgreSQL).
+
+## Why "Scenic Crawler AI"?
+
+The name reflects the technical and functional essence of the tool:
+
+- **Scenic** — Refers to the deep understanding of visual content. Unlike metadata-based searches, our AI analyzes the scene, objects, and visual context within every frame.
+- **Crawler** — A classic computing term for bots that systematically browse through large amounts of data. The app acts as an "intelligent indexer," scouting every second of video to find exactly what you're looking for.
+- **AI** — The core of the project. We leverage advanced computer vision models to interpret natural language and locate specific elements with semantic precision.
 
 ## Overview
 
-DBXSC AI analyzes cabin camera videos to detect signs of **fatigue**, **distraction**, and other configurable risk behaviors in drivers. It uses Databricks Foundation Model API (FMAPI) with vision models for frame-by-frame analysis, stores results in Lakebase (PostgreSQL), and provides a full review workflow.
+Databricks Scenic Crawler AI extracts frames from video files and sends them to a vision model (via Databricks FMAPI) for analysis. It scores each frame against user-defined detection categories, generates AI descriptions, saves thumbnails at detection moments, and provides a full review workflow with confirm/reject actions.
 
-The app is **fully configurable** — detection categories, analysis prompts, scoring thresholds, branding (logo and colors) are all editable through the UI. It can be deployed for any client with their own Lakebase instance, database name, and visual identity.
+The app is **fully configurable through the UI**:
+- **Contexts** — Named analysis profiles with their own categories, prompts, and thresholds (e.g., "Driver Safety", "Workplace Compliance", "Quality Inspection")
+- **Detection categories** — Custom scoring dimensions per context (0-10 scale)
+- **Prompts** — Natural language instructions sent to the vision model
+- **Branding** — Logo and color palette customizable per deployment
+- **Multi-language** — UI available in English, Portuguese, and Spanish
 
 ## Architecture
 
 ```
 +--------------------------------------------------+
 |              Browser (React SPA)                  |
-|   Dashboard | Upload | Batch | Review | Config   |
+|   Dashboard | Upload | Batch | Review | Reports  |
 +--------------------------------------------------+
               | REST API + SSE
               v
 +--------------------------------------------------+
 |          FastAPI Backend (Python)                  |
 |  OpenCV frame extraction -> FMAPI vision analysis |
-|  Background workers + progress streaming          |
+|  Background workers + real-time progress          |
 +--------------------------------------------------+
        |              |              |
        v              v              v
 +------------+  +------------+  +------------+
 | Lakebase   |  | FMAPI      |  | Volumes    |
 | PostgreSQL |  | Llama 4    |  | videos/    |
-| (7 tables) |  | Maverick   |  | thumbnails |
+| (8 tables) |  | Maverick   |  | thumbnails |
 +------------+  +------------+  +------------+
 ```
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Context-based analysis** | Multiple named profiles with independent categories, prompts, and thresholds |
+| **Single video upload** | Wizard flow: select context, then drag-and-drop upload |
+| **Batch processing** | Point to a Databricks Volume, process all videos with real-time SSE progress |
+| **Unity Catalog browser** | Navigate catalogs, schemas, and volumes to select batch source |
+| **Skip already processed** | Processing log prevents re-analysis of previously processed videos |
+| **Review workflow** | Video player with clickable thumbnails at detection moments, confirm/reject per detection |
+| **AI descriptions** | Natural language explanation of detected signals (configurable language) |
+| **Flexible scoring** | 0-10 score per category, stored as JSON for dynamic schema |
+| **Paginated reports** | Filter by context, date range (30/60/90 days or custom), search by filename |
+| **Dashboard with filters** | KPIs, category charts, score distribution, filtered by context and date |
+| **Customizable branding** | Upload logo, set color palette, live preview |
+| **Multi-language UI** | English, Portuguese, Spanish — switchable in sidebar |
+| **Auto-refresh progress** | Review page polls every 3 seconds during processing |
 
 ## Technologies
 
@@ -39,32 +70,34 @@ The app is **fully configurable** — detection categories, analysis prompts, sc
 | Python | 3.11+ | Backend language |
 | FastAPI | >= 0.115 | Async REST API framework |
 | Uvicorn | >= 0.30 | ASGI server |
-| **psycopg2** | >= 2.9 | **PostgreSQL driver (Lakebase)** |
-| Databricks SDK | >= 0.30 | Auth, Volumes, FMAPI credentials |
+| psycopg2 | >= 2.9 | PostgreSQL driver (Lakebase) |
+| Databricks SDK | >= 0.30 | Auth, Volumes, credential generation |
 | OpenCV (headless) | >= 4.9 | Video frame extraction |
-| Pillow | >= 10.0 | Image manipulation |
+| Pillow | >= 10.0 | Image manipulation (thumbnails) |
 
 ### Frontend
 | Technology | Version | Purpose |
 |-----------|---------|---------|
 | React | 19.2 | UI framework (SPA) |
-| Vite | 8.0 | Build tool |
-| CSS custom properties | - | Dynamic theming |
-| HTML5 Video | - | Native player with timestamp seek |
-| Server-Sent Events | - | Real-time batch progress |
+| Vite | 8.0 | Build tool and dev server |
+| CSS custom properties | - | Dynamic theming from branding settings |
+| HTML5 Video | - | Native player with timestamp seeking |
+| Server-Sent Events | - | Real-time batch progress streaming |
+| i18n (custom) | - | Multi-language support (PT/EN/ES) |
 
 ### AI / Vision
 | Technology | Purpose |
 |-----------|---------|
 | Databricks FMAPI | Pay-per-token vision model inference |
-| Meta Llama 4 Maverick | Multimodal model for frame analysis |
+| Meta Llama 4 Maverick | Multimodal model for frame-by-frame analysis |
 
 ### Infrastructure
 | Resource | Purpose |
 |---------|---------|
-| **Databricks Lakebase** | **Managed PostgreSQL database** |
+| **Databricks Lakebase** | Managed PostgreSQL database (scales to zero) |
 | Databricks Apps | App hosting (managed container) |
 | Databricks Volumes | Video and thumbnail file storage |
+| Unity Catalog | Catalog/schema/volume navigation |
 | Serving Endpoints | FMAPI model access |
 | Service Principal | Automatic app authentication |
 
@@ -81,116 +114,110 @@ All names are parameterizable via `app.yaml`:
 | `DBXSC_AI_LAKEBASE_PROJECT` | dbxsc | Lakebase project ID |
 | `DBXSC_AI_LAKEBASE_BRANCH` | production | Lakebase branch |
 | `DBXSC_AI_LAKEBASE_ENDPOINT` | primary | Lakebase endpoint |
+| `DBXSC_AI_DB_USER` | (auto from SP) | PostgreSQL username |
+| `DBXSC_AI_DB_PASSWORD` | (auto from OAuth) | PostgreSQL password |
 | `FMAPI_MODEL` | databricks-llama-4-maverick | Vision model endpoint |
-| `VIDEO_VOLUME` | /Volumes/dbxsc/main/uploaded_videos | Video storage path |
-| `THUMBNAIL_VOLUME` | /Volumes/dbxsc/main/thumbnails | Thumbnail storage path |
+| `VIDEO_VOLUME` | /Volumes/.../uploaded_videos | Video storage path |
+| `THUMBNAIL_VOLUME` | /Volumes/.../thumbnails | Thumbnail storage path |
 
-## Database Schema (PostgreSQL)
+## Database Schema (PostgreSQL / Lakebase)
 
 | Table | Purpose |
 |-------|---------|
-| `videos` | Video metadata, processing status, progress |
-| `analysis_results` | Aggregated scores per video (JSON flexible schema) |
-| `detections` | Individual detection events with timestamps, thumbnails |
-| `processing_log` | Tracks processed videos for skip-on-rerun |
-| `configurations` | Detection categories, prompts, thresholds |
-| `branding` | Logo path, color palette |
+| `videos` | Video metadata, processing status, progress, context reference |
+| `analysis_results` | Aggregated scores per video (flexible JSON schema) |
+| `detections` | Individual detection events with timestamps, thumbnails, review status |
+| `processing_log` | Tracks processed videos for skip-on-rerun deduplication |
+| `contexts` | Named analysis profiles with categories, prompts, thresholds |
+| `configurations` | Legacy key-value configurations |
+| `branding` | Logo path, color palette settings |
 | `review_log` | Audit trail for confirm/reject actions |
 
-All tables use standard PostgreSQL types with proper foreign keys and indexes.
+All tables use standard PostgreSQL types with proper foreign keys and indexes. Tables and seed data are auto-created on first startup.
 
 ## Setup
 
 ### 1. Create Lakebase Project
 
 ```bash
-databricks postgres create-project dbxsc \
-  --json '{"spec": {"display_name": "DBXSC AI"}}' \
+databricks postgres create-project scenic-crawler \
+  --json '{"spec": {"display_name": "Scenic Crawler AI"}}' \
   -p PROFILE
 ```
 
 ### 2. Create Database
 
 ```bash
-HOST=$(databricks postgres list-endpoints projects/dbxsc/branches/production \
+HOST=$(databricks postgres list-endpoints projects/scenic-crawler/branches/production \
   -p PROFILE -o json | jq -r '.[0].status.hosts.host')
 TOKEN=$(databricks postgres generate-database-credential \
-  projects/dbxsc/branches/production/endpoints/primary \
+  projects/scenic-crawler/branches/production/endpoints/primary \
   -p PROFILE -o json | jq -r '.token')
 EMAIL=$(databricks current-user me -p PROFILE -o json | jq -r '.userName')
 
 PGPASSWORD=$TOKEN psql "host=$HOST port=5432 dbname=postgres user=$EMAIL sslmode=require" \
-  -c "CREATE DATABASE dbxsc;"
+  -c "CREATE DATABASE scenic_crawler;"
 ```
 
-### 3. Create Tables and Seed Data
-
-```bash
-PGPASSWORD=$TOKEN psql "host=$HOST port=5432 dbname=dbxsc user=$EMAIL sslmode=require" \
-  -f sql/01_create_tables.sql
-PGPASSWORD=$TOKEN psql "host=$HOST port=5432 dbname=dbxsc user=$EMAIL sslmode=require" \
-  -f sql/02_seed_data.sql
-```
-
-### 4. Create Volumes
-
-```sql
--- In Databricks SQL
-CREATE VOLUME IF NOT EXISTS dbxsc.main.uploaded_videos;
-CREATE VOLUME IF NOT EXISTS dbxsc.main.thumbnails;
-```
-
-### 5. Build Frontend
+### 3. Build Frontend
 
 ```bash
 cd frontend && npm install && npm run build
 ```
 
-### 6. Deploy
+### 4. Deploy
 
 ```bash
-databricks apps create dbxsc
-databricks sync . /Workspace/Users/<email>/dbxsc -p PROFILE
-databricks apps deploy dbxsc /Workspace/Users/<email>/dbxsc SNAPSHOT
+databricks apps create scenic-crawler-ai
+databricks sync . /Workspace/Users/<email>/scenic-crawler-ai -p PROFILE
+databricks apps deploy scenic-crawler-ai /Workspace/Users/<email>/scenic-crawler-ai SNAPSHOT
 ```
 
-### 7. Update app.yaml with Lakebase host
-
-Set `DBXSC_AI_DB_HOST` to your Lakebase endpoint host, or let the app auto-discover it from the project/branch/endpoint configuration.
+Tables and seed data are auto-created on first startup. Configure the `app.yaml` environment variables for your Lakebase instance.
 
 ## Multi-Client Deployment
 
 To deploy for a different client:
 
-1. Create a new Lakebase project: `databricks postgres create-project <client-name>`
-2. Create database and tables using the SQL scripts
-3. Update `app.yaml` environment variables:
-   - `DBXSC_AI_DB_NAME` = client-specific database
-   - `DBXSC_AI_LAKEBASE_PROJECT` = client-specific project
-   - `VIDEO_VOLUME` / `THUMBNAIL_VOLUME` = client-specific paths
-4. Upload client logo and set colors via the Branding settings page
-5. Configure detection categories via the Configurations page
+1. Create a new Lakebase project
+2. Update `app.yaml` environment variables (database name, project, volumes)
+3. Deploy the app — tables auto-create on first startup
+4. Upload client logo and set colors via the Branding page
+5. Create analysis contexts via the Contexts page
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/videos/upload` | Upload video (multipart) |
+| POST | `/api/videos/upload` | Upload video with context (multipart) |
 | GET | `/api/videos` | List all videos |
-| GET | `/api/videos/{id}/stream` | Stream video (MP4) |
-| POST | `/api/batch/start` | Start batch processing |
+| GET | `/api/videos/{id}/stream` | Stream video file (MP4) |
+| DELETE | `/api/videos/{id}` | Delete video and all related data |
+| POST | `/api/batch/start` | Start batch processing (volume + context) |
 | GET | `/api/batch/{id}/progress` | SSE progress stream |
+| GET | `/api/contexts` | List analysis contexts |
+| POST | `/api/contexts` | Create new context |
+| PUT | `/api/contexts/{id}` | Update context |
+| DELETE | `/api/contexts/{id}` | Delete context |
 | POST | `/api/review/{id}/confirm` | Confirm detection |
 | POST | `/api/review/{id}/reject` | Reject detection |
-| GET | `/api/config` | List configurations |
-| PUT | `/api/config/{key}` | Update configuration |
+| GET | `/api/review/pending-videos` | Videos with pending reviews |
+| GET | `/api/reports/videos` | Paginated report with filters |
+| GET | `/api/dashboard/summary` | Dashboard KPIs (filterable) |
+| GET | `/api/dashboard/by-category` | Detections by category |
+| GET | `/api/dashboard/recent` | Recent videos |
+| GET | `/api/dashboard/risk-distribution` | Score distribution |
 | GET | `/api/branding` | Get branding settings |
 | PUT | `/api/branding/{key}` | Update color |
 | POST | `/api/branding/logo` | Upload custom logo |
-| GET | `/api/dashboard/summary` | Dashboard KPIs |
+| GET | `/api/catalog/catalogs` | List Unity Catalog catalogs |
+| GET | `/api/catalog/schemas/{catalog}` | List schemas |
+| GET | `/api/catalog/volumes/{catalog}/{schema}` | List volumes |
 | GET | `/api/debug/logs` | App logs (troubleshooting) |
 
 ## Cost Estimate (FMAPI pay-per-token)
+
+Model: Llama 4 Maverick via Databricks FMAPI
 
 | Volume | FMAPI | Lakebase | Storage | Total/month |
 |--------|-------|----------|---------|-------------|
@@ -199,3 +226,55 @@ To deploy for a different client:
 | 100,000 hours | ~$36,000 | ~$200 | ~$2,000 | **~$38,200** |
 
 Lakebase costs significantly less than SQL Warehouse for this workload since it scales to zero when idle.
+
+## Project Structure
+
+```
+scenic-crawler-ai/
+  app.py                    # FastAPI entry point + SPA serving
+  app.yaml                  # Databricks Apps config (env vars, resources)
+  requirements.txt          # Python dependencies
+  server/
+    database.py             # Lakebase connection (psycopg2, auto-setup)
+    fmapi.py                # FMAPI client via HTTP (vision analysis)
+    video_processor.py      # Frame extraction + analysis pipeline
+    background_worker.py    # Async batch manager (threading + SSE)
+    routes/
+      videos.py             # Upload, list, stream, delete
+      batch.py              # Batch start, cancel, SSE progress
+      review.py             # Confirm/reject, pending videos
+      analysis.py           # Analysis results and detections
+      thumbnails.py         # Serve thumbnail images
+      contexts.py           # CRUD for analysis contexts
+      configurations.py     # Legacy config CRUD
+      branding.py           # Logo and color settings
+      dashboard.py          # KPIs with context/date filters
+      reports.py            # Paginated reports with filters
+      catalog_browser.py    # Unity Catalog navigation
+      debug.py              # In-memory log buffer endpoint
+  frontend/
+    index.html              # HTML base
+    package.json            # React 19, Vite 8
+    vite.config.js          # Build config + dev proxy
+    src/
+      main.jsx              # React root with I18nProvider
+      App.jsx               # SPA shell: sidebar + routing + language selector
+      api.js                # Centralized API client
+      i18n.jsx              # Multi-language system (PT/EN/ES, ~200 keys)
+      pages/
+        Dashboard.jsx       # KPIs, charts, filters
+        VideoUpload.jsx     # Wizard: context -> upload -> success
+        BatchProcessing.jsx # Wizard: context -> volume -> progress
+        VideoList.jsx       # Filterable video table
+        VideoReview.jsx     # Player + thumbnails + confirm/reject
+        Reports.jsx         # Paginated reports with date/context filters
+        Configurations.jsx  # Context manager (CRUD + tooltips)
+        BrandingSettings.jsx # Logo upload, color pickers, preview
+  sql/
+    01_create_tables.sql    # PostgreSQL DDL (auto-run on startup)
+    02_seed_data.sql        # Default configs and branding
+```
+
+## License
+
+Internal use only. Built with Databricks Apps + Lakebase + FMAPI.
