@@ -90,10 +90,14 @@ export const fetchReportVideos = (params = {}) => {
 };
 
 // Streaming
-export const startStream = (streamUrl, contextId, windowSec = 60, username = '', password = '') => request('/stream/start', {
-  method: 'POST', body: JSON.stringify({ stream_url: streamUrl, context_id: contextId, window_seconds: windowSec, username, password }),
+export const startStream = (name, streamUrl, contextId, windowSec = 60, username = '', password = '') => request('/stream/start', {
+  method: 'POST', body: JSON.stringify({ name, stream_url: streamUrl, context_id: contextId, window_seconds: windowSec, username, password }),
 });
 export const stopStream = (id) => request(`/stream/${id}/stop`, { method: 'POST' });
+export const restartStream = (id) => request(`/stream/${id}/restart`, { method: 'POST' });
+export const updateStream = (id, data) => request(`/stream/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteStream = (id) => request(`/stream/${id}`, { method: 'DELETE' });
+export const fetchStreamLogs = (id) => request(`/stream/${id}/logs`);
 export const fetchStreams = () => request('/stream');
 
 // Catalog Browser

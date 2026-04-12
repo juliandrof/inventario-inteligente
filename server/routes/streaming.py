@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from typing import Optional
 from server.database import execute_query
 from server.stream_worker import StreamManager
 
@@ -13,11 +14,18 @@ router = APIRouter()
 
 
 class StreamStartRequest(BaseModel):
+    name: str = ""
     stream_url: str
     context_id: int
     window_seconds: int = 60
     username: str = ""
     password: str = ""
+
+
+class StreamUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    stream_url: Optional[str] = None
+    window_seconds: Optional[int] = None
 
 
 @router.post("/start")
@@ -42,9 +50,8 @@ async def start_stream(req: StreamStartRequest):
         "detail_fps": ctx.get("detail_fps", 1.0),
         "score_threshold": ctx.get("score_threshold", 4),
         "context_color": ctx.get("color"),
+        "window_seconds": req.window_seconds,
     }
-
-    config["window_seconds"] = req.window_seconds
 
     # Inject credentials into RTSP URL if provided
     url = req.stream_url.strip()
@@ -54,9 +61,37 @@ async def start_stream(req: StreamStartRequest):
             cred += f":{req.password}"
         url = url.replace("rtsp://", f"rtsp://{cred}@", 1)
 
+    name = req.name.strip() or f"Stream #{url.split('/')[-1] or 'live'}"
+
     manager = StreamManager()
-    info = manager.start_stream(url, config, req.context_id, ctx["name"])
+    info = manager.start_stream(name, url, config, req.context_id, ctx["name"])
     return info
+
+
+@router.post("/{stream_id}/restart")
+async def restart_stream(stream_id: int):
+    manager = StreamManager()
+    result = manager.restart_stream(stream_id)
+    if not result:
+        raise HTTPException(404, "Stream not found")
+    return result
+
+
+@router.put("/{stream_id}")
+async def update_stream(stream_id: int, req: StreamUpdateRequest):
+    manager = StreamManager()
+    result = manager.update_stream(stream_id, name=req.name, stream_url=req.stream_url, window_seconds=req.window_seconds)
+    if not result:
+        raise HTTPException(404, "Stream not found")
+    return result
+
+
+@router.delete("/{stream_id}")
+async def delete_stream(stream_id: int):
+    manager = StreamManager()
+    if not manager.delete_stream(stream_id):
+        raise HTTPException(404, "Stream not found")
+    return {"deleted": True}
 
 
 @router.get("/{stream_id}")
@@ -66,6 +101,13 @@ async def get_stream(stream_id: int):
     if not s:
         raise HTTPException(404, "Stream not found")
     return s
+
+
+@router.get("/{stream_id}/logs")
+async def get_stream_logs(stream_id: int):
+    manager = StreamManager()
+    logs = manager.get_logs(stream_id)
+    return logs
 
 
 @router.get("/{stream_id}/progress")
@@ -78,15 +120,7 @@ async def stream_progress(stream_id: int):
             s = manager.get_stream(stream_id)
             if not s:
                 break
-            data = json.dumps({
-                "stream_id": s["stream_id"],
-                "status": s["status"],
-                "windows_processed": s["windows_processed"],
-                "total_detections": s["total_detections"],
-                "current_window_sec": s["current_window_sec"],
-                "error": s.get("error"),
-                "videos": s.get("videos", [])[-10:],
-            })
+            data = json.dumps(s)
             yield f"data: {data}\n\n"
             if s["status"] in ("COMPLETED", "FAILED", "STOPPED"):
                 break
@@ -105,14 +139,4 @@ async def stop_stream(stream_id: int):
 @router.get("")
 async def list_streams():
     manager = StreamManager()
-    return [
-        {
-            "stream_id": s["stream_id"],
-            "stream_url": s["stream_url"],
-            "context_name": s["context_name"],
-            "status": s["status"],
-            "windows_processed": s["windows_processed"],
-            "total_detections": s["total_detections"],
-        }
-        for s in manager.list_streams()
-    ]
+    return manager.list_streams()
