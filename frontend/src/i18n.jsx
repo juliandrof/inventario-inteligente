@@ -6,7 +6,7 @@ const translations = {
     'menu.dashboard': 'Dashboard',
     'menu.upload': 'Upload de Video',
     'menu.batch': 'Processamento Batch',
-    'menu.videos': 'Videos Processados',
+    'menu.videos': 'Processamento',
     'menu.review': 'Revisao',
     'menu.reports': 'Relatorio',
     'menu.contexts': 'Contextos',
@@ -100,7 +100,7 @@ const translations = {
     'batch.select': 'Selecione...',
 
     // Videos
-    'videos.title': 'Videos Processados',
+    'videos.title': 'Processamento',
     'videos.all': 'Todos',
     'videos.no_videos': 'Nenhum video encontrado',
     'videos.delete': 'Excluir',
@@ -259,7 +259,7 @@ const translations = {
     'menu.dashboard': 'Dashboard',
     'menu.upload': 'Video Upload',
     'menu.batch': 'Batch Processing',
-    'menu.videos': 'Processed Videos',
+    'menu.videos': 'Processing',
     'menu.review': 'Review',
     'menu.reports': 'Report',
     'menu.contexts': 'Contexts',
@@ -349,7 +349,7 @@ const translations = {
     'batch.volumes': 'Volumes',
     'batch.select': 'Select...',
 
-    'videos.title': 'Processed Videos',
+    'videos.title': 'Processing',
     'videos.all': 'All',
     'videos.no_videos': 'No videos found',
     'videos.delete': 'Delete',
@@ -502,7 +502,7 @@ const translations = {
     'menu.dashboard': 'Panel',
     'menu.upload': 'Subir Video',
     'menu.batch': 'Procesamiento Batch',
-    'menu.videos': 'Videos Procesados',
+    'menu.videos': 'Procesamiento',
     'menu.review': 'Revision',
     'menu.reports': 'Informe',
     'menu.contexts': 'Contextos',
@@ -592,7 +592,7 @@ const translations = {
     'batch.volumes': 'Volumenes',
     'batch.select': 'Seleccione...',
 
-    'videos.title': 'Videos Procesados',
+    'videos.title': 'Procesamiento',
     'videos.all': 'Todos',
     'videos.no_videos': 'Ningun video encontrado',
     'videos.delete': 'Eliminar',
