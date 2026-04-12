@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchVideos, deleteVideo, fetchContexts, fetchStreams, stopStream } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
@@ -12,15 +12,16 @@ function VideoList({ navigate }) {
   const [contextFilter, setContextFilter] = useState('');
   const [expandedStream, setExpandedStream] = useState(null);
 
+  const loadRef = useRef(false);
   const load = () => {
-    setLoading(true);
+    if (!loadRef.current) setLoading(true);
     Promise.all([
       fetchVideos().catch(() => []),
       fetchStreams().catch(() => []),
       fetchContexts().catch(() => []),
     ]).then(([v, s, c]) => {
       setVideos(v || []); setStreams(s || []); setContexts(c || []);
-      setLoading(false);
+      setLoading(false); loadRef.current = true;
     });
   };
   useEffect(() => { load(); const iv = setInterval(load, 10000); return () => clearInterval(iv); }, []);
@@ -37,16 +38,17 @@ function VideoList({ navigate }) {
       const match = v.filename.match(/^stream_(\d+)_/);
       if (match) {
         const sid = match[1];
-        if (!streamGroups[sid]) streamGroups[sid] = { id: sid, videos: [], context_name: v.context_name };
+        if (!streamGroups[sid]) streamGroups[sid] = { id: sid, videos: [], context_name: v.context_name, context_color: v.context_color };
         streamGroups[sid].videos.push(v);
+        if (v.context_color) streamGroups[sid].context_color = v.context_color;
         continue;
       }
     }
     regularVideos.push(v);
   }
 
-  // Add active streams that may not have windows yet
-  for (const s of activeStreams) {
+  // Add all streams (active or completed) and match them to groups
+  for (const s of streams) {
     const sid = String(s.stream_id);
     if (!streamGroups[sid]) streamGroups[sid] = { id: sid, videos: [], context_name: s.context_name };
     streamGroups[sid].stream = s;
