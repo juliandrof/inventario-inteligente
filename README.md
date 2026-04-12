@@ -39,8 +39,8 @@ The app is **fully configurable through the UI**:
        v              v              v
 +------------+  +------------+  +------------+
 | Lakebase   |  | FMAPI      |  | Volumes    |
-| PostgreSQL |  | Llama 4    |  | videos/    |
-| (8 tables) |  | Maverick   |  | thumbnails |
+| PostgreSQL |  | (config-   |  | videos/    |
+| (8 tables) |  |  urable)   |  | thumbnails |
 +------------+  +------------+  +------------+
 ```
 
@@ -58,6 +58,8 @@ The app is **fully configurable through the UI**:
 | **Flexible scoring** | 0-10 score per category, stored as JSON for dynamic schema |
 | **Paginated reports** | Filter by context, date range (30/60/90 days or custom), search by filename |
 | **Dashboard with filters** | KPIs, category charts, score distribution, filtered by context and date |
+| **Configurable AI model** | Vision model endpoint selectable via Settings (Llama 4, Claude, GPT, Gemini, etc.) |
+| **Unified Settings** | Single page with tabs: Contexts, AI Model, Branding |
 | **Customizable branding** | Upload logo, set color palette, live preview |
 | **Multi-language UI** | English, Portuguese, Spanish — switchable in sidebar |
 | **Auto-refresh progress** | Review page polls every 3 seconds during processing |
@@ -89,7 +91,7 @@ The app is **fully configurable through the UI**:
 | Technology | Purpose |
 |-----------|---------|
 | Databricks FMAPI | Pay-per-token vision model inference |
-| Meta Llama 4 Maverick | Multimodal model for frame-by-frame analysis |
+| Configurable model | Default: Llama 4 Maverick. Changeable via Settings to any vision-capable endpoint (Claude, GPT, Gemini, etc.) |
 
 ### Infrastructure
 | Resource | Purpose |
@@ -268,8 +270,7 @@ scenic-crawler-ai/
         VideoList.jsx       # Filterable video table
         VideoReview.jsx     # Player + thumbnails + confirm/reject
         Reports.jsx         # Paginated reports with date/context filters
-        Configurations.jsx  # Context manager (CRUD + tooltips)
-        BrandingSettings.jsx # Logo upload, color pickers, preview
+        Settings.jsx        # Unified settings (Contexts + AI Model + Branding)
   sql/
     01_create_tables.sql    # PostgreSQL DDL (auto-run on startup)
     02_seed_data.sql        # Default configs and branding

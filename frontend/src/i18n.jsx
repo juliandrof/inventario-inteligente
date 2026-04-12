@@ -661,7 +661,7 @@ const translations = {
 const I18nContext = createContext();
 
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState(() => localStorage.getItem('dbxsc_lang') || 'pt');
+  const [lang, setLang] = useState(() => localStorage.getItem('dbxsc_ai_lang') || 'pt');
 
   const t = useCallback((key) => {
     return translations[lang]?.[key] || translations.pt[key] || key;
@@ -669,7 +669,7 @@ export function I18nProvider({ children }) {
 
   const setLanguage = useCallback((l) => {
     setLang(l);
-    localStorage.setItem('dbxsc_lang', l);
+    localStorage.setItem('dbxsc_ai_lang', l);
   }, []);
 
   return (
