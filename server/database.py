@@ -4,7 +4,16 @@ import os
 import json
 import logging
 import subprocess
+import ssl
+import urllib.request
+import urllib.error
 from typing import Optional, Any
+
+# Allow self-signed certs in corporate environments
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except Exception:
+    pass
 
 import psycopg2
 import psycopg2.extras
@@ -33,39 +42,96 @@ def _get_workspace_client() -> WorkspaceClient:
 
 
 def _get_lakebase_credentials() -> tuple[str, str, str]:
-    """Get Lakebase host, user, and OAuth token."""
+    """Get Lakebase host, user, and database credential token using SDK."""
     w = _get_workspace_client()
+    host = DB_HOST
+    endpoint_name = f"projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}/endpoints/{LAKEBASE_ENDPOINT}"
 
-    # Get endpoint host
-    endpoint_path = f"projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}"
-    try:
-        resp = w.api_client.do("GET", f"/api/2.0/postgres/endpoints?parent={endpoint_path}")
-        endpoints = resp.get("endpoints", [])
-        host = endpoints[0]["status"]["hosts"]["host"] if endpoints else DB_HOST
-    except Exception as e:
-        logger.warning(f"Could not get Lakebase endpoint host via API: {e}")
-        host = DB_HOST
+    # Auto-discover host if not set
+    if not host:
+        try:
+            branch_path = f"projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}"
+            endpoints = list(w.postgres.list_endpoints(parent=branch_path))
+            if endpoints:
+                host = endpoints[0].status.hosts.host
+                logger.info(f"Discovered Lakebase host: {host}")
+        except Exception as e:
+            logger.warning(f"Could not discover Lakebase host via SDK: {e}")
+            # Fallback to REST API
+            try:
+                ws_host = w.config.host.rstrip("/")
+                headers = w.config.authenticate()
+                ws_token = headers.get("Authorization", "").replace("Bearer ", "") if headers else ""
+                url = f"{ws_host}/api/2.0/postgres/projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}/endpoints"
+                req = urllib.request.Request(url, headers={"Authorization": f"Bearer {ws_token}"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read())
+                    eps = data.get("endpoints", [])
+                    if eps:
+                        host = eps[0]["status"]["hosts"]["host"]
+            except Exception as e2:
+                logger.warning(f"REST fallback also failed: {e2}")
 
     if not host:
-        raise ValueError("DBXSC_AI_DB_HOST not set and could not discover from Lakebase API")
+        raise ValueError("DBXSC_AI_DB_HOST not set and could not discover")
 
-    # Generate OAuth credential
-    cred_path = f"projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}/endpoints/{LAKEBASE_ENDPOINT}"
+    # Get credentials - prefer env vars (native PG auth), fallback to OAuth
+    user = os.environ.get("DBXSC_AI_DB_USER", "")
+    password = os.environ.get("DBXSC_AI_DB_PASSWORD", "")
+
+    if user and password:
+        logger.info(f"Using native PG credentials: user={user}")
+        return host, user, password
+
+    # Fallback: OAuth credential generation
+    db_token = ""
+    # Method 1: Try SDK
     try:
-        resp = w.api_client.do("POST", f"/api/2.0/postgres/credentials:generateDatabaseCredential", body={"name": cred_path})
-        token = resp.get("token", "")
+        credential = w.postgres.generate_database_credential(endpoint=endpoint_name)
+        db_token = credential.token
     except Exception as e:
-        logger.warning(f"Could not generate Lakebase credential via API: {e}")
-        token = os.environ.get("DBXSC_AI_DB_PASSWORD", "")
+        logger.info(f"SDK unavailable: {e}")
 
-    # Get user email
-    try:
-        me = w.current_user.me()
-        user = me.user_name
-    except Exception:
-        user = os.environ.get("DBXSC_AI_DB_USER", "postgres")
+    # Method 2: Generate database credential via REST API
+    if not db_token:
+        try:
+            auth_headers = w.config.authenticate()
+            ws_token = auth_headers.get("Authorization", "").replace("Bearer ", "") if auth_headers else ""
+            if not ws_token and w.config.token:
+                ws_token = w.config.token
+            logger.info(f"Method 2: calling REST /api/2.0/postgres/credentials with ws_token_len={len(ws_token)}")
 
-    return host, user, token
+            ws_host = w.config.host.rstrip("/")
+            url = f"{ws_host}/api/2.0/postgres/credentials"
+            payload = json.dumps({"endpoint": endpoint_name}).encode("utf-8")
+            req = urllib.request.Request(url, data=payload,
+                headers={"Authorization": f"Bearer {ws_token}", "Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read())
+                db_token = data.get("token", "")
+                logger.info(f"Method 2: DB credential generated, token_len={len(db_token)}")
+        except Exception as e:
+            logger.error(f"Method 2 (REST credential) failed: {e}")
+
+    # Method 3: Last resort - workspace token directly
+    if not db_token:
+        try:
+            auth_headers = w.config.authenticate()
+            db_token = auth_headers.get("Authorization", "").replace("Bearer ", "") if auth_headers else ""
+            logger.info(f"Method 3 (raw workspace token fallback): token_len={len(db_token)}")
+        except Exception as e:
+            logger.error(f"Method 3 failed: {e}")
+
+    # Get user identity for OAuth fallback
+    if not user:
+        try:
+            me = w.current_user.me()
+            user = me.user_name
+        except Exception:
+            user = "postgres"
+
+    logger.info(f"Lakebase (OAuth fallback): host={host}, user={user}")
+    return host, user, db_token
 
 
 def get_connection():

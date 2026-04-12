@@ -17,8 +17,12 @@ class BufferHandler(logging.Handler):
 
 # Attach to root logger
 _handler = BufferHandler()
+_handler.setLevel(logging.DEBUG)
 _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"))
-logging.getLogger().addHandler(_handler)
+root = logging.getLogger()
+root.addHandler(_handler)
+root.setLevel(logging.DEBUG)
+logging.getLogger("server").setLevel(logging.DEBUG)
 
 
 @router.get("/logs")

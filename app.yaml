@@ -20,6 +20,10 @@ env:
     value: "production"
   - name: DBXSC_AI_LAKEBASE_ENDPOINT
     value: "primary"
+  - name: DBXSC_AI_DB_USER
+    value: "***SERVICE_PRINCIPAL_ID***"
+  - name: DBXSC_AI_DB_PASSWORD
+    value: "***REDACTED***"
   - name: FMAPI_MODEL
     value: "databricks-llama-4-maverick"
   - name: VIDEO_VOLUME
