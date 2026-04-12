@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchBranding, updateBranding, uploadLogo } from '../api';
+import { useI18n } from '../i18n';
 
 const COLOR_SETTINGS = [
   { key: 'primary_color', label: 'Cor Primaria', default: '#2563EB' },
@@ -9,6 +10,7 @@ const COLOR_SETTINGS = [
 ];
 
 function BrandingSettings() {
+  const { t } = useI18n();
   const [colors, setColors] = useState({});
   const [logoFile, setLogoFile] = useState(null);
   const [hasCustomLogo, setHasCustomLogo] = useState(false);
@@ -85,14 +87,14 @@ function BrandingSettings() {
   return (
     <div>
       <div className="page-header">
-        <h1>Visual e Marca</h1>
-        <p>Personalize o logo e a paleta de cores do aplicativo</p>
+        <h1>{t('brand.title')}</h1>
+        <p>{t('brand.subtitle')}</p>
       </div>
 
       <div className="two-cols">
         {/* Logo */}
         <div className="card">
-          <div className="card-title">Logo</div>
+          <div className="card-title">{t('brand.logo')}</div>
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             {hasCustomLogo ? (
               <img src="/api/branding/logo" alt="Logo atual" style={{ maxHeight: 80, maxWidth: 200, marginBottom: 12 }} />
@@ -102,12 +104,12 @@ function BrandingSettings() {
               </div>
             )}
             <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
-              {hasCustomLogo ? 'Logo personalizado ativo' : 'Usando logo padrao'}
+              {hasCustomLogo ? t('brand.custom_active') : t('brand.default_logo')}
             </p>
           </div>
 
           <div className="form-group">
-            <label>Fazer upload de novo logo</label>
+            <label>{t('brand.upload_logo')}</label>
             <input
               type="file"
               accept="image/png,image/jpeg,image/svg+xml"
@@ -126,7 +128,7 @@ function BrandingSettings() {
 
         {/* Colors */}
         <div className="card">
-          <div className="card-title">Paleta de Cores</div>
+          <div className="card-title">{t('brand.colors')}</div>
 
           {COLOR_SETTINGS.map(s => (
             <div key={s.key} className="color-picker-row">
@@ -153,7 +155,7 @@ function BrandingSettings() {
 
       {/* Preview */}
       <div className="card">
-        <div className="card-title">Pre-visualizacao</div>
+        <div className="card-title">{t('brand.preview')}</div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', minHeight: 200 }}>
           <div style={{ width: 200, background: colors.sidebar_color, borderRadius: 12, padding: 20, color: 'white' }}>
             <div style={{ fontWeight: 700, marginBottom: 20 }}>Menu Lateral</div>

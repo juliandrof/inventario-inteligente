@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { startBatch, fetchBatches, fetchCatalogs, fetchSchemas, fetchVolumes, fetchContexts } from '../api';
+import { useI18n } from '../i18n';
 
 function BatchProcessing({ navigate }) {
+  const { t } = useI18n();
   const [volumePath, setVolumePath] = useState('');
   const [batch, setBatch] = useState(null);
   const [batches, setBatches] = useState([]);
@@ -61,14 +63,14 @@ function BatchProcessing({ navigate }) {
   return (
     <div>
       <div className="page-header">
-        <h1>Processamento em Batch</h1>
-        <p>Analise todos os videos de um volume do Databricks</p>
+        <h1>{t('batch.title')}</h1>
+        <p>{t('batch.subtitle')}</p>
       </div>
 
       <div className="card">
-        <div className="card-title">Iniciar Processamento</div>
+        <div className="card-title">{t('batch.start')}</div>
         <div className="form-group">
-          <label>Caminho do Volume</label>
+          <label>{t('batch.volume_path')}</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
@@ -81,7 +83,7 @@ function BatchProcessing({ navigate }) {
               setShowBrowser(!showBrowser);
               if (!showBrowser && catalogs.length === 0) fetchCatalogs().then(setCatalogs).catch(() => {});
             }}>
-              Navegar
+              {t('batch.browse')}
             </button>
           </div>
         </div>
@@ -91,24 +93,24 @@ function BatchProcessing({ navigate }) {
           <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 16, marginBottom: 16, border: '1px solid #e0e0e0' }}>
             <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Catalogo</label>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>{t('batch.catalog')}</label>
                 <select value={selCatalog} onChange={e => {
                   setSelCatalog(e.target.value);
                   setSelSchema('');
                   setVolumes([]);
                   if (e.target.value) fetchSchemas(e.target.value).then(setSchemas).catch(() => {});
                 }} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}>
-                  <option value="">Selecione...</option>
+                  <option value="">{t('batch.select')}</option>
                   {catalogs.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Schema</label>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>{t('batch.schema')}</label>
                 <select value={selSchema} onChange={e => {
                   setSelSchema(e.target.value);
                   if (e.target.value && selCatalog) fetchVolumes(selCatalog, e.target.value).then(setVolumes).catch(() => {});
                 }} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}>
-                  <option value="">Selecione...</option>
+                  <option value="">{t('batch.select')}</option>
                   {schemas.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
                 </select>
               </div>
@@ -132,24 +134,24 @@ function BatchProcessing({ navigate }) {
         {/* Context selector */}
         {contexts.length > 0 && (
           <div className="form-group">
-            <label>Contexto de Analise</label>
+            <label>{t('batch.context')}</label>
             <select value={contextId} onChange={e => setContextId(Number(e.target.value))}
               style={{ maxWidth: 400 }}>
-              <option value={0}>-- Selecione um contexto --</option>
+              <option value={0}>{t('batch.select_context')}</option>
               {contexts.map(c => <option key={c.context_id} value={c.context_id}>{c.name}</option>)}
             </select>
           </div>
         )}
 
         <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
-          Videos ja processados anteriormente serao ignorados automaticamente.
+          {t('batch.skip_info')}
         </p>
         <button
           className="btn btn-primary"
           onClick={handleStart}
           disabled={loading || !volumePath.trim() || (batch && batch.status === 'RUNNING')}
         >
-          {loading ? 'Iniciando...' : 'Iniciar Processamento'}
+          {loading ? t('batch.starting') : t('batch.start')}
         </button>
         {error && <p style={{ color: 'var(--dbxsc-danger)', marginTop: 8, fontSize: 13 }}>{error}</p>}
       </div>
@@ -167,12 +169,12 @@ function BatchProcessing({ navigate }) {
             </div>
             <div className="progress-label">
               {batch.status === 'COMPLETED' ? (
-                'Processamento concluido!'
+                t('batch.completed')
               ) : batch.status === 'FAILED' ? (
-                'Falha no processamento'
+                t('batch.failed')
               ) : (
                 <>
-                  {batch.completed || 0} de {batch.total || 0} videos processados
+                  {batch.completed || 0} de {batch.total || 0} {t('batch.processed')}
                   {batch.current_video && <> | Atual: {batch.current_video}</>}
                   {batch.estimated_remaining_sec > 0 && (
                     <> | Tempo estimado: {formatTime(batch.estimated_remaining_sec)}</>
@@ -254,7 +256,7 @@ function BatchProcessing({ navigate }) {
 
       {batches.length > 0 && (
         <div className="card">
-          <div className="card-title">Historico de Batches</div>
+          <div className="card-title">{t('batch.history')}</div>
           <table className="data-table">
             <thead>
               <tr><th>ID</th><th>Volume</th><th>Status</th><th>Total</th><th>Concluidos</th><th>Falhas</th></tr>

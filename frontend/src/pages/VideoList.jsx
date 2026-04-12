@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { fetchVideos, deleteVideo } from '../api';
+import { useI18n } from '../i18n';
 
 function VideoList({ navigate }) {
+  const { t } = useI18n();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
@@ -25,12 +27,12 @@ function VideoList({ navigate }) {
     loadVideos();
   };
 
-  if (loading) return <div className="loading"><div className="spinner"></div>Carregando videos...</div>;
+  if (loading) return <div className="loading"><div className="spinner"></div>{t('common.loading')}</div>;
 
   return (
     <div>
       <div className="page-header">
-        <h1>Videos Processados</h1>
+        <h1>{t('videos.title')}</h1>
         <p>{videos.length} videos no sistema</p>
       </div>
 
@@ -41,14 +43,14 @@ function VideoList({ navigate }) {
             className={`btn btn-sm ${filter === s ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setFilter(s)}
           >
-            {s === 'ALL' ? 'Todos' : s}
+            {s === 'ALL' ? t('videos.all') : s}
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
         <div className="empty-state">
-          <h3>Nenhum video encontrado</h3>
+          <h3>{t('videos.no_videos')}</h3>
           <p>Faca upload ou inicie um processamento em batch</p>
         </div>
       ) : (
@@ -56,14 +58,14 @@ function VideoList({ navigate }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Arquivo</th>
-                <th>Status</th>
-                <th>Progresso</th>
-                <th>Duracao</th>
-                <th>Score</th>
-                <th>Deteccoes</th>
-                <th>Fonte</th>
-                <th>Acoes</th>
+                <th>{t('videos.file')}</th>
+                <th>{t('videos.status')}</th>
+                <th>{t('videos.progress')}</th>
+                <th>{t('videos.duration')}</th>
+                <th>{t('videos.score')}</th>
+                <th>{t('videos.detections')}</th>
+                <th>{t('videos.source')}</th>
+                <th>{t('videos.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -94,7 +96,7 @@ function VideoList({ navigate }) {
                   <td style={{ fontSize: 12 }}>{v.source || '-'}</td>
                   <td>
                     <button className="btn btn-sm btn-danger" onClick={(e) => handleDelete(e, v.video_id)}>
-                      Excluir
+                      {t('videos.delete')}
                     </button>
                   </td>
                 </tr>

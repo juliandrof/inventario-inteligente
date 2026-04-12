@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchVideo, fetchDetections, fetchPendingVideos, confirmDetection, rejectDetection } from '../api';
+import { useI18n } from '../i18n';
 
 function VideoReview({ navigate, pageParams }) {
+  const { t } = useI18n();
   const [videoId, setVideoId] = useState(pageParams.videoId || null);
   const [video, setVideo] = useState(null);
   const [detections, setDetections] = useState([]);
@@ -53,20 +55,20 @@ function VideoReview({ navigate, pageParams }) {
     setDetections(updated || []);
   };
 
-  if (loading) return <div className="loading"><div className="spinner"></div>Carregando...</div>;
+  if (loading) return <div className="loading"><div className="spinner"></div>{t('common.loading')}</div>;
 
   // ==================== VIDEO LIST (no video selected) ====================
   if (!videoId) {
     return (
       <div>
         <div className="page-header">
-          <h1>Revisao</h1>
-          <p>{pendingVideos.length} video(s) aguardando revisao</p>
+          <h1>{t('review.title')}</h1>
+          <p>{pendingVideos.length} {t('review.pending_videos')}</p>
         </div>
 
         {pendingVideos.length === 0 ? (
           <div className="empty-state">
-            <h3>Nenhum video pendente de revisao</h3>
+            <h3>{t('review.no_pending')}</h3>
             <p>Videos com score 0 (sem deteccoes) vao direto para o relatorio.</p>
           </div>
         ) : (
@@ -100,7 +102,7 @@ function VideoReview({ navigate, pageParams }) {
                     background: 'rgba(0,0,0,0.7)', color: 'white',
                     padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500,
                   }}>
-                    {v.pending_count} pendente(s)
+                    {v.pending_count} {t('review.pending_count')}
                   </div>
                 </div>
                 {/* Info */}
@@ -173,7 +175,7 @@ function VideoReview({ navigate, pageParams }) {
               {video.overall_risk != null && (
                 <div className={`stat-card ${video.overall_risk >= 7 ? 'danger' : video.overall_risk >= 4 ? 'warning' : ''}`}>
                   <div className="stat-value">{typeof video.overall_risk === 'number' ? video.overall_risk.toFixed(1) : video.overall_risk}</div>
-                  <div className="stat-label">Score Geral</div>
+                  <div className="stat-label">{t('review.score_general')}</div>
                 </div>
               )}
             </div>
@@ -186,7 +188,7 @@ function VideoReview({ navigate, pageParams }) {
 
               {detections.length > 0 && (
                 <div className="card" style={{ marginTop: 12 }}>
-                  <div className="card-title">Momentos Detectados ({detections.length})</div>
+                  <div className="card-title">{t('review.moments')} ({detections.length})</div>
                   <div className="thumbnail-strip">
                     {detections.map((d, i) => (
                       <div key={i}
@@ -235,8 +237,8 @@ function VideoReview({ navigate, pageParams }) {
               )}
               {detections.length === 0 && (
                 <div className="empty-state" style={{ padding: 20 }}>
-                  <h3>Nenhuma deteccao</h3>
-                  <p>Nenhum sinal de risco identificado</p>
+                  <h3>{t('review.no_detections')}</h3>
+                  <p>{t('review.no_risk')}</p>
                 </div>
               )}
             </div>
@@ -246,13 +248,13 @@ function VideoReview({ navigate, pageParams }) {
         <div className="card" style={{ textAlign: 'center', padding: 40 }}>
           {video?.status === 'FAILED' ? (
             <>
-              <h3 style={{ color: 'var(--dbxsc-danger)' }}>Falha no Processamento</h3>
+              <h3 style={{ color: 'var(--dbxsc-danger)' }}>{t('review.failed')}</h3>
               <p style={{ color: '#999', marginTop: 8 }}>{video?.error_message || 'Erro desconhecido'}</p>
             </>
           ) : (
             <>
               <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
-              <h3>Processando video...</h3>
+              <h3>{t('review.processing')}</h3>
               <div className="progress-bar" style={{ maxWidth: 300, margin: '16px auto' }}>
                 <div className="progress-bar-fill" style={{ width: `${video?.progress_pct || 0}%` }}></div>
               </div>
@@ -292,7 +294,7 @@ function DetectionCard({ detection: d, notes, setNotes, onConfirm, onReject, onS
       {!reviewed && (
         <>
           <div className="form-group" style={{ marginBottom: 8 }}>
-            <textarea placeholder="Observacoes manuais (opcional)..." value={notes[d.detection_id] || ''}
+            <textarea placeholder="{t('review.notes_placeholder')}" value={notes[d.detection_id] || ''}
               onChange={e => setNotes({ ...notes, [d.detection_id]: e.target.value })}
               style={{ minHeight: 50, fontSize: 12 }} onClick={e => e.stopPropagation()} />
           </div>

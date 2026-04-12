@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchReportVideos, fetchDetections, fetchContexts } from '../api';
+import { useI18n } from '../i18n';
 
 function daysAgo(n) {
   const d = new Date();
@@ -8,6 +9,7 @@ function daysAgo(n) {
 }
 
 function Reports({ navigate }) {
+  const { t } = useI18n();
   const [data, setData] = useState({ items: [], total: 0, page: 1, total_pages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -61,10 +63,10 @@ function Reports({ navigate }) {
           <h2 style={{ fontSize: 18 }}>{selectedVideo.filename}</h2>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm btn-primary" onClick={() => navigate('review', { videoId: selectedVideo.video_id })}>
-              Retornar para Analise
+              {t('reports.return_analysis')}
             </button>
             <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedVideo(null); setDetections([]); }}>
-              Voltar ao Relatorio
+              {t('reports.back_to_report')}
             </button>
           </div>
         </div>
@@ -88,17 +90,17 @@ function Reports({ navigate }) {
             })()}
             <div className={`stat-card ${(selectedVideo.overall_risk || 0) >= 7 ? 'danger' : ''}`}>
               <div className="stat-value">{typeof selectedVideo.overall_risk === 'number' ? selectedVideo.overall_risk.toFixed(1) : selectedVideo.overall_risk || 0}</div>
-              <div className="stat-label">Score Geral</div>
+              <div className="stat-label">{t('reports.score_general')}</div>
             </div>
           </div>
         )}
 
         {reviewed.length > 0 && (
           <div className="card">
-            <div className="card-title">Deteccoes Revisadas ({reviewed.length})</div>
+            <div className="card-title">{t('reports.reviewed_detections')} ({reviewed.length})</div>
             <table className="data-table">
               <thead>
-                <tr><th>Momento</th><th>Categoria</th><th>Score</th><th>Resultado</th><th>Descricao IA</th><th>Notas</th></tr>
+                <tr><th>Momento</th><th>Categoria</th><th>{t('reports.score')}</th><th>Resultado</th><th>Descricao IA</th><th>Notas</th></tr>
               </thead>
               <tbody>
                 {reviewed.map((d, i) => (
@@ -118,14 +120,14 @@ function Reports({ navigate }) {
 
         {pending.length > 0 && (
           <div className="card" style={{ borderLeft: '4px solid #f39c12' }}>
-            <div className="card-title" style={{ color: '#856404' }}>Aguardando Revisao ({pending.length})</div>
+            <div className="card-title" style={{ color: '#856404' }}>{t('reports.awaiting_review')} ({pending.length})</div>
             <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Clique abaixo para revisar.</p>
             <button className="btn btn-sm btn-primary" onClick={() => navigate('review', { videoId: selectedVideo.video_id })}>Revisar Agora</button>
           </div>
         )}
 
         {detections.length === 0 && (
-          <div className="card"><p style={{ color: '#999' }}>Nenhuma deteccao neste video (score 0).</p></div>
+          <div className="card"><p style={{ color: '#999' }}>{t('reports.no_detections')}</p></div>
         )}
       </div>
     );
@@ -135,18 +137,18 @@ function Reports({ navigate }) {
   return (
     <div>
       <div className="page-header">
-        <h1>Relatorio de Videos</h1>
-        <p>{data.total} video(s) processado(s)</p>
+        <h1>{t('reports.title')}</h1>
+        <p>{data.total} {t('reports.videos_processed')}</p>
       </div>
 
       {/* Filters */}
       <div className="card">
         {/* Search + score filter */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          <input type="text" placeholder="Pesquisar por nome..." value={search}
+          <input type="text" placeholder={t('reports.search')} value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 180, padding: '9px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 14 }} />
-          {[['ALL','Todos'],['WITH_DETECTIONS','Com Deteccoes'],['CLEAN','Limpos'],['HIGH_RISK','Alto Score']].map(([k,l]) => (
+          {[['ALL',t('reports.all')],['WITH_DETECTIONS',t('reports.with_detections')],['CLEAN',t('reports.clean')],['HIGH_RISK',t('reports.high_score')]].map(([k,l]) => (
             <button key={k} className={`btn btn-sm ${riskFilter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setRiskFilter(k)}>{l}</button>
           ))}
         </div>
@@ -167,7 +169,7 @@ function Reports({ navigate }) {
           <div>
             <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Periodo</label>
             <div style={{ display: 'flex', gap: 6 }}>
-              {[['ALL','Todos'],['30','30 dias'],['60','60 dias'],['90','90 dias'],['CUSTOM','Personalizar']].map(([k,l]) => (
+              {[['ALL',t('reports.all')],['30',t('reports.days_30')],['60',t('reports.days_60')],['90',t('reports.days_90')],['CUSTOM',t('reports.custom')]].map(([k,l]) => (
                 <button key={k} className={`btn btn-sm ${datePeriod === k ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => { setDatePeriod(k); if (k !== 'CUSTOM') { setUploadFrom(''); setUploadTo(''); } }}>{l}</button>
               ))}
@@ -196,7 +198,7 @@ function Reports({ navigate }) {
         <div className="loading"><div className="spinner"></div>Carregando...</div>
       ) : data.items.length === 0 ? (
         <div className="empty-state">
-          <h3>Nenhum video encontrado</h3>
+          <h3>{t('reports.no_videos')}</h3>
           <p>{search ? 'Tente outro termo de busca' : 'Nenhum video processado ainda'}</p>
         </div>
       ) : (
@@ -204,7 +206,7 @@ function Reports({ navigate }) {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="data-table">
               <thead>
-                <tr><th>Arquivo</th><th>Contexto</th><th>Duracao</th><th>Score</th><th>Deteccoes</th><th>Categorias</th><th>Upload</th><th>Acoes</th></tr>
+                <tr><th>{t('reports.file')}</th><th>{t('reports.context')}</th><th>{t('reports.duration')}</th><th>{t('reports.score')}</th><th>{t('reports.detections')}</th><th>{t('reports.categories')}</th><th>{t('reports.upload_date')}</th><th>{t('reports.actions')}</th></tr>
               </thead>
               <tbody>
                 {data.items.map((v, i) => (
@@ -226,7 +228,7 @@ function Reports({ navigate }) {
                     <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp)}</td>
                     <td>
                       <button className="btn btn-sm btn-primary" onClick={e => { e.stopPropagation(); navigate('review', { videoId: v.video_id }); }}>
-                        Reanalisar
+                        {t('reports.reanalyze')}
                       </button>
                     </td>
                   </tr>
