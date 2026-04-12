@@ -25,9 +25,9 @@ IS_DATABRICKS_APP = bool(os.environ.get("DATABRICKS_APP_NAME"))
 
 DB_HOST = os.environ.get("DBXSC_AI_DB_HOST", "")
 DB_PORT = int(os.environ.get("DBXSC_AI_DB_PORT", "5432"))
-DB_NAME = os.environ.get("DBXSC_AI_DB_NAME", "dbxsc")
+DB_NAME = os.environ.get("DBXSC_AI_DB_NAME", "dbxsc_ai")
 DB_SCHEMA = os.environ.get("DBXSC_AI_DB_SCHEMA", "public")
-LAKEBASE_PROJECT = os.environ.get("DBXSC_AI_LAKEBASE_PROJECT", "dbxsc")
+LAKEBASE_PROJECT = os.environ.get("DBXSC_AI_LAKEBASE_PROJECT", "dbxsc-ai")
 LAKEBASE_BRANCH = os.environ.get("DBXSC_AI_LAKEBASE_BRANCH", "production")
 LAKEBASE_ENDPOINT = os.environ.get("DBXSC_AI_LAKEBASE_ENDPOINT", "primary")
 

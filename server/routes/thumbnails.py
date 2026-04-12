@@ -12,7 +12,7 @@ from server.database import get_workspace_client
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc/main/thumbnails")
+THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc_ai/main/thumbnails")
 
 # Simple in-memory cache for thumbnails
 _thumb_cache = {}

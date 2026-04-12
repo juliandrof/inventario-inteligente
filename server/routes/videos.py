@@ -14,7 +14,7 @@ from server.database import execute_query, execute_update, get_workspace_client
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/dbxsc/main/uploaded_videos")
+VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/dbxsc_ai/main/uploaded_videos")
 
 
 def _get_config() -> dict:

@@ -12,7 +12,7 @@ from server.database import execute_query, execute_update, get_workspace_client
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc/main/thumbnails")
+THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc_ai/main/thumbnails")
 
 
 class BrandingUpdate(BaseModel):

@@ -111,9 +111,9 @@ All names are parameterizable via `app.yaml`:
 |----------|---------|-------------|
 | `DBXSC_AI_DB_HOST` | (auto-discovered) | Lakebase endpoint host |
 | `DBXSC_AI_DB_PORT` | 5432 | PostgreSQL port |
-| `DBXSC_AI_DB_NAME` | dbxsc | Database name |
+| `DBXSC_AI_DB_NAME` | dbxsc_ai | Database name |
 | `DBXSC_AI_DB_SCHEMA` | public | PostgreSQL schema |
-| `DBXSC_AI_LAKEBASE_PROJECT` | dbxsc | Lakebase project ID |
+| `DBXSC_AI_LAKEBASE_PROJECT` | dbxsc-ai | Lakebase project ID |
 | `DBXSC_AI_LAKEBASE_BRANCH` | production | Lakebase branch |
 | `DBXSC_AI_LAKEBASE_ENDPOINT` | primary | Lakebase endpoint |
 | `DBXSC_AI_DB_USER` | (auto from SP) | PostgreSQL username |
@@ -170,9 +170,9 @@ cd frontend && npm install && npm run build
 ### 4. Deploy
 
 ```bash
-databricks apps create scenic-crawler-ai
-databricks sync . /Workspace/Users/<email>/scenic-crawler-ai -p PROFILE
-databricks apps deploy scenic-crawler-ai /Workspace/Users/<email>/scenic-crawler-ai SNAPSHOT
+databricks apps create dbxsc-ai
+databricks sync . /Workspace/Users/<email>/dbxsc-ai -p PROFILE
+databricks apps deploy dbxsc-ai /Workspace/Users/<email>/dbxsc-ai SNAPSHOT
 ```
 
 Tables and seed data are auto-created on first startup. Configure the `app.yaml` environment variables for your Lakebase instance.
@@ -232,7 +232,7 @@ Lakebase costs significantly less than SQL Warehouse for this workload since it 
 ## Project Structure
 
 ```
-scenic-crawler-ai/
+dbxsc-ai/
   app.py                    # FastAPI entry point + SPA serving
   app.yaml                  # Databricks Apps config (env vars, resources)
   requirements.txt          # Python dependencies

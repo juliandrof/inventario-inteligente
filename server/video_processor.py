@@ -15,7 +15,7 @@ from server.fmapi import analyze_frame
 
 logger = logging.getLogger(__name__)
 
-THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc/main/thumbnails")
+THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc_ai/main/thumbnails")
 
 
 def compute_file_hash(filepath: str) -> str:
