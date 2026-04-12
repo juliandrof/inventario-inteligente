@@ -93,8 +93,8 @@ function Configurations() {
               <input type="number" step="0.1" min="0.1" max="5" value={form.scan_fps} onChange={e => setForm({ ...form, scan_fps: e.target.value })} /></div>
             <div className="form-group" style={{ width: 150 }}><label>FPS Detalhe</label>
               <input type="number" step="0.1" min="0.1" max="10" value={form.detail_fps} onChange={e => setForm({ ...form, detail_fps: e.target.value })} /></div>
-            <div className="form-group" style={{ width: 150 }}><label>Threshold (1-10)</label>
-              <input type="number" min="1" max="10" value={form.score_threshold} onChange={e => setForm({ ...form, score_threshold: e.target.value })} /></div>
+            <div className="form-group" style={{ width: 150 }}><label>Threshold (0-10)</label>
+              <input type="number" min="0" max="10" value={form.score_threshold} onChange={e => setForm({ ...form, score_threshold: e.target.value })} /></div>
           </div>
         </div>
         <button className="btn btn-primary" onClick={handleSave}

@@ -136,8 +136,8 @@ def process_video(video_id: int, local_path: str, config: dict, progress_callbac
                 result["description"] = f"Erro: {str(e)[:100]}"
                 result["confidence"] = 0.0
 
-            max_score = max(result.get(c, 1) for c in categories)
-            max_cat = max(categories, key=lambda c: result.get(c, 1))
+            max_score = max(result.get(c, 0) for c in categories)
+            max_cat = max(categories, key=lambda c: result.get(c, 0))
 
             if max_score >= threshold:
                 # Save thumbnail
@@ -151,7 +151,7 @@ def process_video(video_id: int, local_path: str, config: dict, progress_callbac
                     "ai_description": result.get("description", ""),
                     "thumbnail_path": thumb,
                     "frame_index": frame_idx,
-                    "scores_detail": {c: result.get(c, 1) for c in categories},
+                    "scores_detail": {c: result.get(c, 0) for c in categories},
                 })
                 logger.info(f"[V{video_id}] Detection! {max_cat}={max_score} at t={timestamp:.1f}s")
 
@@ -188,10 +188,10 @@ def _save_results(video_id: int, detections: list[dict], categories: list[str], 
 
     scores = {}
     for cat in categories:
-        cat_scores = [d["scores_detail"].get(cat, 1) for d in detections if d["scores_detail"].get(cat, 1) > 1]
-        scores[cat] = max(cat_scores) if cat_scores else 1
+        cat_scores = [d["scores_detail"].get(cat, 0) for d in detections if d["scores_detail"].get(cat, 0) > 0]
+        scores[cat] = max(cat_scores) if cat_scores else 0
 
-    overall = sum(scores.values()) / len(scores) if scores else 1
+    overall = sum(scores.values()) / len(scores) if scores else 0
 
     scores_json = json.dumps(scores)
     config_json = json.dumps(config, default=str)

@@ -69,7 +69,7 @@ async def risk_distribution():
     rows = execute_query(f"""
         SELECT
             CASE
-                WHEN score <= 3 THEN 'Baixo (1-3)'
+                WHEN score <= 3 THEN 'Baixo (0-3)'
                 WHEN score <= 6 THEN 'Medio (4-6)'
                 WHEN score <= 8 THEN 'Alto (7-8)'
                 ELSE 'Critico (9-10)'

@@ -67,12 +67,12 @@ def analyze_frame(frame_b64: str, prompt: str, categories: list[str]) -> dict:
     )
     user_prompt = (
         f"{prompt}\n\n"
-        f"Categories to score (1-10 scale, 1=normal, 10=severe): {categories_str}\n\n"
+        f"Categories to score (0-10 scale, 0=no risk at all, 10=severe): {categories_str}\n\n"
         "Return JSON with:\n"
-        f"- A numeric score (1-10) for each category: {categories_str}\n"
+        f"- A numeric score (0-10) for each category: {categories_str}\n"
         '- "description": brief description of what you observe (in Portuguese)\n'
         '- "confidence": your confidence level 0.0-1.0\n'
-        "Example: {" + ", ".join(f'"{c}": 3' for c in categories) + ', "description": "...", "confidence": 0.85}'
+        "Example: {" + ", ".join(f'"{c}": 0' for c in categories) + ', "description": "...", "confidence": 0.85}'
     )
 
     payload = {
@@ -108,12 +108,12 @@ def analyze_frame(frame_b64: str, prompt: str, categories: list[str]) -> dict:
         # Ensure all categories have scores
         for cat in categories:
             if cat not in result:
-                result[cat] = 1
+                result[cat] = 0
             else:
                 try:
-                    result[cat] = max(1, min(10, int(float(result[cat]))))
+                    result[cat] = max(0, min(10, int(float(result[cat]))))
                 except (ValueError, TypeError):
-                    result[cat] = 1
+                    result[cat] = 0
 
         if "description" not in result:
             result["description"] = "Analise nao disponivel"
@@ -124,7 +124,7 @@ def analyze_frame(frame_b64: str, prompt: str, categories: list[str]) -> dict:
 
     except Exception as e:
         logger.error(f"FMAPI analysis failed: {e}")
-        fallback = {cat: 1 for cat in categories}
+        fallback = {cat: 0 for cat in categories}
         fallback["description"] = f"Erro na analise: {str(e)[:200]}"
         fallback["confidence"] = 0.0
         return fallback
