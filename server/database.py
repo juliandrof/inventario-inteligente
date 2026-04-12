@@ -211,7 +211,8 @@ def _auto_create_tables(conn):
                 duration_seconds DOUBLE PRECISION, fps DOUBLE PRECISION,
                 resolution VARCHAR(50), upload_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
                 status VARCHAR(20) NOT NULL DEFAULT 'PENDING', progress_pct DOUBLE PRECISION DEFAULT 0,
-                source VARCHAR(20), uploaded_by VARCHAR(200), error_message TEXT);
+                source VARCHAR(20), uploaded_by VARCHAR(200), error_message TEXT,
+                context_id BIGINT, context_name VARCHAR(200));
             CREATE TABLE IF NOT EXISTS analysis_results (
                 result_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
                 analysis_timestamp TIMESTAMP NOT NULL DEFAULT NOW(), scores_json TEXT NOT NULL,
@@ -243,6 +244,14 @@ def _auto_create_tables(conn):
                 video_id BIGINT NOT NULL, action VARCHAR(20) NOT NULL,
                 previous_status VARCHAR(20), reviewer VARCHAR(200) NOT NULL,
                 notes TEXT, action_timestamp TIMESTAMP NOT NULL DEFAULT NOW());
+            CREATE TABLE IF NOT EXISTS contexts (
+                context_id BIGINT PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE,
+                description TEXT, categories TEXT NOT NULL DEFAULT '["fadiga", "distracao"]',
+                scan_prompt TEXT NOT NULL, scan_fps DOUBLE PRECISION DEFAULT 0.2,
+                detail_fps DOUBLE PRECISION DEFAULT 1.0, score_threshold INTEGER DEFAULT 4,
+                created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW());
+            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_id BIGINT;
+            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_name VARCHAR(200);
         """)
         logger.info("Tables verified/created")
 
