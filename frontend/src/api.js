@@ -12,11 +12,15 @@ async function request(url, options = {}) {
   return res.json();
 }
 
-// Dashboard
-export const fetchDashboardSummary = () => request('/dashboard/summary');
-export const fetchDashboardByCategory = () => request('/dashboard/by-category');
-export const fetchDashboardRecent = () => request('/dashboard/recent');
-export const fetchRiskDistribution = () => request('/dashboard/risk-distribution');
+// Dashboard (with optional filters)
+function qs(params) {
+  const s = Object.entries(params).filter(([,v]) => v != null && v !== '').map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  return s ? '?' + s : '';
+}
+export const fetchDashboardSummary = (f={}) => request('/dashboard/summary' + qs(f));
+export const fetchDashboardByCategory = (f={}) => request('/dashboard/by-category' + qs(f));
+export const fetchDashboardRecent = (f={}) => request('/dashboard/recent' + qs(f));
+export const fetchRiskDistribution = (f={}) => request('/dashboard/risk-distribution' + qs(f));
 
 // Videos
 export const fetchVideos = () => request('/videos');
