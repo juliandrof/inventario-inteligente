@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchVideo, fetchDetections, fetchPendingVideos, confirmDetection, rejectDetection } from '../api';
+import { fetchVideo, fetchDetections, fetchPendingVideos, fetchContexts, confirmDetection, rejectDetection } from '../api';
 import { useI18n } from '../i18n';
 
 function VideoReview({ navigate, pageParams }) {
@@ -8,6 +8,9 @@ function VideoReview({ navigate, pageParams }) {
   const [video, setVideo] = useState(null);
   const [detections, setDetections] = useState([]);
   const [pendingVideos, setPendingVideos] = useState([]);
+  const [contexts, setContexts] = useState([]);
+  const [contextFilter, setContextFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeDetection, setActiveDetection] = useState(null);
   const [notes, setNotes] = useState({});
@@ -40,6 +43,7 @@ function VideoReview({ navigate, pageParams }) {
       // Poll every 3 seconds while video is processing
       interval = setInterval(load, 3000);
     } else {
+      fetchContexts().then(setContexts).catch(() => {});
       fetchPendingVideos()
         .then(setPendingVideos)
         .catch(() => setPendingVideos([]))
@@ -71,6 +75,12 @@ function VideoReview({ navigate, pageParams }) {
 
   // ==================== VIDEO LIST (no video selected) ====================
   if (!videoId) {
+    const filteredPending = pendingVideos.filter(v => {
+      if (contextFilter && v.context_name !== contextFilter) return false;
+      if (search && !v.filename.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+
     return (
       <div>
         <div className="page-header">
@@ -78,14 +88,29 @@ function VideoReview({ navigate, pageParams }) {
           <p>{pendingVideos.length} {t('review.pending_videos')}</p>
         </div>
 
-        {pendingVideos.length === 0 ? (
+        {/* Filters */}
+        {pendingVideos.length > 0 && (
+          <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+            <input type="text" placeholder={t('reports.search')} value={search} onChange={e => setSearch(e.target.value)}
+              style={{ flex: 1, minWidth: 180, padding: '9px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 14 }} />
+            {contexts.length > 0 && (
+              <select value={contextFilter} onChange={e => setContextFilter(e.target.value)}
+                style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, minWidth: 180 }}>
+                <option value="">{t('reports.all_contexts')}</option>
+                {contexts.map(c => <option key={c.context_id} value={c.name}>{c.name}</option>)}
+              </select>
+            )}
+          </div>
+        )}
+
+        {filteredPending.length === 0 ? (
           <div className="empty-state">
             <h3>{t('review.no_pending')}</h3>
-            <p>Videos com score 0 (sem deteccoes) vao direto para o relatorio.</p>
+            <p>{t('review.no_pending_info')}</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {pendingVideos.map((v, i) => (
+            {filteredPending.map((v, i) => (
               <div key={i} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.2s' }}
                 onClick={() => setVideoId(v.video_id)}
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
