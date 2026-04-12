@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { uploadVideo, startBatch, startStream, stopStream, fetchBatches, fetchContexts, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
+import { uploadVideo, startBatch, fetchBatches, fetchContexts, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
 import { useI18n, ContextBadge } from '../i18n';
 
 function ProcessVideos({ navigate }) {
   const { t } = useI18n();
 
   // Wizard state
-  const [step, setStep] = useState('context'); // context | method | upload | batch | stream | success | progress | streaming
+  const [step, setStep] = useState('context'); // context | method | upload | batch | success | progress
   const [contexts, setContexts] = useState([]);
   const [contextId, setContextId] = useState(0);
   const [contextName, setContextName] = useState('');
   const [contextColor, setContextColor] = useState('');
 
-  // Stream state
-  const [streamUrl, setStreamUrl] = useState('');
-  const [streamWindow, setStreamWindow] = useState(60);
-  const [streamData, setStreamData] = useState(null);
-  const streamEsRef = useRef(null);
 
   // Upload state
   const [dragOver, setDragOver] = useState(false);
@@ -42,7 +37,7 @@ function ProcessVideos({ navigate }) {
   const [selSchema, setSelSchema] = useState('');
 
   useEffect(() => { fetchContexts().then(setContexts).catch(() => {}); }, []);
-  useEffect(() => { return () => { if (eventSourceRef.current) eventSourceRef.current.close(); if (streamEsRef.current) streamEsRef.current.close(); }; }, []);
+  useEffect(() => { return () => { if (eventSourceRef.current) eventSourceRef.current.close(); }; }, []);
 
   const selectContext = (id) => {
     setContextId(id);
@@ -54,30 +49,9 @@ function ProcessVideos({ navigate }) {
 
   const resetWizard = () => {
     setStep('context'); setContextId(0); setContextName(''); setContextColor(''); setResult(null); setBatch(null);
-    setVolumePath(''); setStreamUrl(''); setStreamData(null); setError(''); setProgress(0); setPreviewVideoId(null);
+    setVolumePath(''); setError(''); setProgress(0); setPreviewVideoId(null);
   };
 
-  // Stream handler
-  const handleStartStream = async () => {
-    if (!streamUrl.trim()) return;
-    setError(''); setLoading(true);
-    try {
-      const res = await startStream(streamUrl.trim(), contextId, streamWindow);
-      setStreamData(res); setStep('streaming');
-      const es = new EventSource(`/api/stream/${res.stream_id}/progress`);
-      streamEsRef.current = es;
-      es.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        setStreamData(data);
-        if (['COMPLETED', 'FAILED', 'STOPPED'].includes(data.status)) es.close();
-      };
-      es.onerror = () => es.close();
-    } catch (e) { setError(e.message || t('common.error')); } finally { setLoading(false); }
-  };
-
-  const handleStopStream = async () => {
-    if (streamData) { await stopStream(streamData.stream_id); }
-  };
 
   // Upload handlers
   const handleFile = async (file) => {
@@ -161,12 +135,10 @@ function ProcessVideos({ navigate }) {
 
         <div className="card">
           <div className="card-title">{t('process.step2')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 12 }}>
-            {/* Upload option */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
             {[
               { key: 'upload', icon: <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 6v28M24 6l-10 10M24 6l10 10M6 34v6a2 2 0 002 2h32a2 2 0 002-2v-6" stroke="var(--dbxsc-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>, titleKey: 'process.upload_title', descKey: 'process.upload_desc' },
               { key: 'batch', icon: <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.7"/><rect x="28" y="4" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.5"/><rect x="4" y="28" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.5"/><rect x="28" y="28" width="16" height="16" rx="3" fill="var(--dbxsc-primary)" opacity="0.3"/></svg>, titleKey: 'process.batch_title', descKey: 'process.batch_desc' },
-              { key: 'stream', icon: <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="6" fill="var(--dbxsc-primary)"/><path d="M14 14a14 14 0 0120 0" stroke="var(--dbxsc-primary)" strokeWidth="2.5" strokeLinecap="round" opacity="0.4"/><path d="M10 10a20 20 0 0128 0" stroke="var(--dbxsc-primary)" strokeWidth="2.5" strokeLinecap="round" opacity="0.25"/><path d="M34 34a14 14 0 01-20 0" stroke="var(--dbxsc-primary)" strokeWidth="2.5" strokeLinecap="round" opacity="0.4"/><path d="M38 38a20 20 0 01-28 0" stroke="var(--dbxsc-primary)" strokeWidth="2.5" strokeLinecap="round" opacity="0.25"/></svg>, titleKey: 'process.stream_title', descKey: 'process.stream_desc' },
             ].map(opt => (
               <div key={opt.key} onClick={() => setStep(opt.key)}
                 style={{ padding: 24, borderRadius: 12, border: '2px solid #e0e0e0', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s' }}
@@ -381,107 +353,6 @@ function ProcessVideos({ navigate }) {
             )}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // ==================== STREAM (URL input) ====================
-  if (step === 'stream') {
-    return (
-      <div>
-        <div className="page-header"><h1>{t('process.title')}</h1></div>
-        {contextHeader}
-        <div className="card">
-          <div className="card-title">{t('process.stream_title')}</div>
-          <p style={{ fontSize: 13, color: '#999', marginBottom: 16 }}>{t('process.stream_info')}</p>
-
-          <div className="form-group">
-            <label>{t('process.stream_url')}</label>
-            <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)}
-              placeholder="rtsp://camera-ip:554/stream1" style={{ fontFamily: 'monospace' }} />
-          </div>
-
-          <div className="form-group" style={{ maxWidth: 250 }}>
-            <label>{t('process.stream_window_label')}</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="number" min="10" max="600" value={streamWindow} onChange={e => setStreamWindow(Number(e.target.value))}
-                style={{ width: 80 }} />
-              <span style={{ fontSize: 13, color: '#999' }}>{t('process.stream_window_unit')}</span>
-            </div>
-          </div>
-
-          <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 }}>
-            <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('process.stream_protocols')}</div>
-            <div style={{ color: '#666', lineHeight: 1.8 }}>
-              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtsp://</code> — {t('process.stream_rtsp')}<br/>
-              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>rtmp://</code> — {t('process.stream_rtmp')}<br/>
-              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>http(s)://</code> — {t('process.stream_http')}<br/>
-              <code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 4 }}>/Volumes/...</code> — {t('process.stream_mock')}
-            </div>
-            <div style={{ marginTop: 8, padding: '8px 10px', background: '#e8f5e9', borderRadius: 6, color: '#2e7d32' }}>
-              <strong>{t('process.stream_test_label')}</strong><br/>
-              <code style={{ fontSize: 12 }}>/Volumes/jsf_dbxsc_demo/main/test_videos/motorista_fadiga_severa.mp4</code>
-            </div>
-          </div>
-
-          <button className="btn btn-primary" onClick={handleStartStream} disabled={loading || !streamUrl.trim()}>
-            {loading ? t('batch.starting') : t('process.stream_start')}
-          </button>
-          {error && <p style={{ color: 'var(--dbxsc-danger)', marginTop: 8, fontSize: 13 }}>{error}</p>}
-        </div>
-      </div>
-    );
-  }
-
-  // ==================== STREAMING PROGRESS ====================
-  if (step === 'streaming' && streamData) {
-    const isLive = streamData.status === 'RUNNING';
-    return (
-      <div>
-        <div className="page-header"><h1>{t('process.title')}</h1></div>
-        <div className="card">
-          <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isLive && <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#e74c3c', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>}
-            {t('process.stream_title')}
-            <ContextBadge name={contextName} color={contextColor} style={{ fontSize: 11, marginLeft: 8 }} />
-            <span className={`badge ${isLive ? 'badge-scanning' : streamData.status === 'COMPLETED' ? 'badge-completed' : 'badge-failed'}`} style={{ marginLeft: 4 }}>
-              {streamData.status}
-            </span>
-          </div>
-
-          <div className="stat-cards" style={{ marginTop: 12 }}>
-            <div className="stat-card info"><div className="stat-value">{streamData.windows_processed}</div><div className="stat-label">{t('process.stream_windows')}</div></div>
-            <div className="stat-card"><div className="stat-value">{streamData.total_detections}</div><div className="stat-label">{t('videos.detections')}</div></div>
-          </div>
-
-          {streamData.error && <p style={{ color: 'var(--dbxsc-danger)', marginTop: 8, fontSize: 13 }}>{streamData.error}</p>}
-
-          {/* Windows table */}
-          {streamData.videos && streamData.videos.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <div className="card-title">{t('process.stream_windows_detail')}</div>
-              <table className="data-table">
-                <thead><tr><th>{t('process.stream_window')}</th><th>{t('videos.detections')}</th><th>{t('videos.score')}</th><th>{t('videos.actions')}</th></tr></thead>
-                <tbody>
-                  {streamData.videos.map((v, i) => (
-                    <tr key={i}>
-                      <td>#{v.window}</td>
-                      <td>{v.detections}</td>
-                      <td>{v.overall != null ? <span className={`score-gauge ${v.overall >= 7 ? 'score-critical' : v.overall >= 4 ? 'score-high' : v.overall > 0 ? 'score-medium' : 'score-low'}`}>{v.overall.toFixed(1)}</span> : '-'}</td>
-                      <td>{v.detections > 0 && <button className="btn btn-sm btn-primary" onClick={() => navigate('review', { videoId: v.video_id })}>{t('batch.review_btn')}</button>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'center' }}>
-            {isLive && <button className="btn btn-danger" onClick={handleStopStream}>{t('process.stream_stop')}</button>}
-            {!isLive && <button className="btn btn-primary" onClick={resetWizard}>{t('process.new')}</button>}
-          </div>
-        </div>
-        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
       </div>
     );
   }

@@ -239,6 +239,10 @@ const translations = {
     // Settings
     'menu.settings': 'Configuracoes',
     'menu.process': 'Processar Videos',
+    'menu.streaming': 'Streaming',
+    'streaming.subtitle': 'Monitoramento de video em tempo real',
+    'streaming.new': 'Novo Streaming',
+    'streaming.no_streams': 'Nenhum streaming registrado',
     'settings.title': 'Configuracoes',
     'settings.subtitle': 'Modelo de IA, contextos de analise e identidade visual',
     'settings.tab_contexts': 'Contextos',
@@ -487,6 +491,10 @@ const translations = {
     // Settings
     'menu.settings': 'Settings',
     'menu.process': 'Process Videos',
+    'menu.streaming': 'Streaming',
+    'streaming.subtitle': 'Real-time video monitoring',
+    'streaming.new': 'New Streaming',
+    'streaming.no_streams': 'No streams recorded',
     'settings.title': 'Settings',
     'settings.subtitle': 'AI model, analysis contexts, and branding',
     'settings.tab_contexts': 'Contexts',
@@ -734,6 +742,10 @@ const translations = {
     // Settings
     'menu.settings': 'Configuracion',
     'menu.process': 'Procesar Videos',
+    'menu.streaming': 'Streaming',
+    'streaming.subtitle': 'Monitoreo de video en tiempo real',
+    'streaming.new': 'Nuevo Streaming',
+    'streaming.no_streams': 'Ningun streaming registrado',
     'settings.title': 'Configuracion',
     'settings.subtitle': 'Modelo de IA, contextos de analisis e identidad visual',
     'settings.tab_contexts': 'Contextos',
