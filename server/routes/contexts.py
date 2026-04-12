@@ -18,6 +18,7 @@ class ContextCreate(BaseModel):
     scan_fps: Optional[float] = 0.2
     detail_fps: Optional[float] = 1.0
     score_threshold: Optional[int] = 4
+    color: Optional[str] = "#2563EB"
 
 
 class ContextUpdate(BaseModel):
@@ -28,6 +29,7 @@ class ContextUpdate(BaseModel):
     scan_fps: Optional[float] = None
     detail_fps: Optional[float] = None
     score_threshold: Optional[int] = None
+    color: Optional[str] = None
 
 
 @router.get("")
@@ -47,12 +49,13 @@ async def get_context(context_id: int):
 async def create_context(req: ContextCreate):
     cid = int(time.time() * 1000)
     execute_update("""
-        INSERT INTO contexts (context_id, name, description, categories, scan_prompt, scan_fps, detail_fps, score_threshold, created_at, updated_at)
-        VALUES (%(id)s, %(name)s, %(desc)s, %(cats)s, %(prompt)s, %(sfps)s, %(dfps)s, %(thresh)s, NOW(), NOW())
+        INSERT INTO contexts (context_id, name, description, categories, scan_prompt, scan_fps, detail_fps, score_threshold, color, created_at, updated_at)
+        VALUES (%(id)s, %(name)s, %(desc)s, %(cats)s, %(prompt)s, %(sfps)s, %(dfps)s, %(thresh)s, %(color)s, NOW(), NOW())
     """, {
         "id": cid, "name": req.name, "desc": req.description,
         "cats": json.dumps(req.categories), "prompt": req.scan_prompt,
         "sfps": req.scan_fps, "dfps": req.detail_fps, "thresh": req.score_threshold,
+        "color": req.color or "#2563EB",
     })
     return {"context_id": cid, "name": req.name}
 
@@ -79,6 +82,8 @@ async def update_context(context_id: int, req: ContextUpdate):
         updates.append("detail_fps = %(dfps)s"); params["dfps"] = req.detail_fps
     if req.score_threshold is not None:
         updates.append("score_threshold = %(thresh)s"); params["thresh"] = req.score_threshold
+    if req.color is not None:
+        updates.append("color = %(color)s"); params["color"] = req.color
 
     if updates:
         updates.append("updated_at = NOW()")

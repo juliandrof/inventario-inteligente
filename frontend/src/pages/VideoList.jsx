@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchVideos, deleteVideo, fetchContexts, fetchStreams, stopStream } from '../api';
-import { useI18n } from '../i18n';
+import { useI18n, ContextBadge } from '../i18n';
 
 function VideoList({ navigate }) {
   const { t } = useI18n();
@@ -119,7 +119,7 @@ function VideoList({ navigate }) {
                       Streaming #{g.id}
                       <span style={{ fontWeight: 400, fontSize: 12, color: '#999', marginLeft: 8 }}>{g.videos.length} {t('process.stream_windows').toLowerCase()}</span>
                     </div>
-                    {g.context_name && <span className="badge badge-analyzing" style={{ fontSize: 10, marginTop: 2, display: 'inline-block' }}>{g.context_name}</span>}
+                    {g.context_name && <ContextBadge name={g.context_name} color={g.context_color} style={{ fontSize: 10, marginTop: 2 }} />}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {totalDet > 0 && <span style={{ fontSize: 13 }}>{totalDet} {t('videos.detections').toLowerCase()}</span>}
@@ -170,7 +170,7 @@ function VideoList({ navigate }) {
               {filtered.map((v, i) => (
                 <tr key={i} className="clickable" onClick={() => navigate('review', { videoId: v.video_id })}>
                   <td style={{ fontWeight: 500 }}>{v.filename}</td>
-                  <td>{v.context_name ? <span className="badge badge-analyzing" style={{ fontSize: 11 }}>{v.context_name}</span> : '-'}</td>
+                  <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
                   <td><span className={`badge badge-${(v.status || 'pending').toLowerCase()}`}>{v.status}</span></td>
                   <td>{v.status !== 'COMPLETED' && v.status !== 'FAILED' ? <div className="progress-bar" style={{ width: 80 }}><div className="progress-bar-fill" style={{ width: `${v.progress_pct || 0}%` }}></div></div> : <span style={{ fontSize: 12, color: '#999' }}>100%</span>}</td>
                   <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>

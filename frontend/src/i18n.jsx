@@ -183,6 +183,7 @@ const translations = {
     'ctx.name_placeholder': 'Ex: Motorista, Seguranca do Trabalho',
     'ctx.description': 'Descricao',
     'ctx.desc_placeholder': 'Breve descricao',
+    'ctx.color': 'Cor da Tag',
     'ctx.categories_title': 'Categorias de Deteccao',
     'ctx.categories_info': 'Cada categoria recebe score 0-10.',
     'ctx.new_category': 'Nova categoria',
@@ -429,6 +430,7 @@ const translations = {
     'ctx.name_placeholder': 'E.g.: Driver, Workplace Safety',
     'ctx.description': 'Description',
     'ctx.desc_placeholder': 'Brief description',
+    'ctx.color': 'Tag Color',
     'ctx.categories_title': 'Detection Categories',
     'ctx.categories_info': 'Each category receives a score 0-10.',
     'ctx.new_category': 'New category',
@@ -672,6 +674,7 @@ const translations = {
     'ctx.name_placeholder': 'Ej: Conductor, Seguridad Laboral',
     'ctx.description': 'Descripcion',
     'ctx.desc_placeholder': 'Breve descripcion',
+    'ctx.color': 'Color de la Etiqueta',
     'ctx.categories_title': 'Categorias de Deteccion',
     'ctx.categories_info': 'Cada categoria recibe score 0-10.',
     'ctx.new_category': 'Nueva categoria',
@@ -774,6 +777,20 @@ export function Tooltip({ text }) {
         <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
         <text x="8" y="12" textAnchor="middle" fontSize="10" fontWeight="700" fill="currentColor">i</text>
       </svg>
+    </span>
+  );
+}
+
+export function ContextBadge({ name, color, style = {} }) {
+  if (!name) return <span style={{ color: '#999' }}>-</span>;
+  const bg = color || '#64748B';
+  return (
+    <span style={{
+      display: 'inline-block', padding: '3px 10px', borderRadius: 12,
+      fontSize: 11, fontWeight: 600, color: 'white', background: bg,
+      ...style,
+    }}>
+      {name}
     </span>
   );
 }

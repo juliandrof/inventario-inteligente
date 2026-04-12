@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchDashboardSummary, fetchDashboardByCategory, fetchDashboardRecent, fetchRiskDistribution, fetchContexts } from '../api';
-import { useI18n } from '../i18n';
+import { useI18n, ContextBadge } from '../i18n';
 
 function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; }
 
@@ -145,7 +145,7 @@ function Dashboard({ navigate }) {
                 <tbody>{recent.map((v, i) => (
                   <tr key={i} className="clickable" onClick={() => navigate('review', { videoId: v.video_id })}>
                     <td style={{ fontWeight: 500 }}>{v.filename}</td>
-                    <td>{v.context_name ? <span className="badge badge-analyzing">{v.context_name}</span> : '-'}</td>
+                    <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
                     <td><span className={`badge badge-${(v.status || 'pending').toLowerCase()}`}>{v.status}</span></td>
                     <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                     <td>{v.overall_risk ? <span className={`score-gauge ${sc(v.overall_risk)}`}>{typeof v.overall_risk === 'number' ? v.overall_risk.toFixed(1) : v.overall_risk}</span> : '-'}</td>

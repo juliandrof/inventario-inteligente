@@ -52,7 +52,7 @@ async def pending_reviews():
 async def pending_videos():
     """Videos that have at least one pending detection (grouped by video)."""
     return execute_query("""
-        SELECT v.video_id, v.filename, v.duration_seconds, v.context_name,
+        SELECT v.video_id, v.filename, v.duration_seconds, v.context_name, v.context_color,
                ar.overall_risk, ar.scores_json, ar.total_detections,
                COUNT(d.detection_id) FILTER (WHERE d.review_status = 'PENDING') as pending_count,
                (SELECT d2.thumbnail_path FROM detections d2
@@ -63,7 +63,7 @@ async def pending_videos():
         JOIN analysis_results ar ON v.video_id = ar.video_id
         JOIN detections d ON v.video_id = d.video_id
         WHERE ar.overall_risk > 0
-        GROUP BY v.video_id, v.filename, v.duration_seconds, v.context_name,
+        GROUP BY v.video_id, v.filename, v.duration_seconds, v.context_name, v.context_color,
                  ar.overall_risk, ar.scores_json, ar.total_detections
         HAVING COUNT(d.detection_id) FILTER (WHERE d.review_status = 'PENDING') > 0
         ORDER BY ar.overall_risk DESC

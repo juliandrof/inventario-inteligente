@@ -78,7 +78,7 @@ async def recent_videos(
     where_v, params = _build_where(context_name, upload_from, upload_to)
     return execute_query(f"""
         SELECT v.video_id, v.filename, v.status, v.progress_pct,
-               v.upload_timestamp, v.duration_seconds, v.context_name,
+               v.upload_timestamp, v.duration_seconds, v.context_name, v.context_color,
                ar.overall_risk, ar.total_detections
         FROM videos v LEFT JOIN analysis_results ar ON v.video_id = ar.video_id
         WHERE 1=1 {where_v}

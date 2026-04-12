@@ -62,12 +62,14 @@ async def upload_video(file: UploadFile = File(...), context_id: int = 0):
     if ext not in allowed:
         raise HTTPException(400, f"Invalid format. Allowed: {', '.join(allowed)}")
 
-    # Get context name
+    # Get context name and color
     ctx_name = None
+    ctx_color = None
     if context_id:
-        ctx_rows = execute_query("SELECT name FROM contexts WHERE context_id = %(id)s", {"id": context_id})
+        ctx_rows = execute_query("SELECT name, color FROM contexts WHERE context_id = %(id)s", {"id": context_id})
         if ctx_rows:
             ctx_name = ctx_rows[0]["name"]
+            ctx_color = ctx_rows[0].get("color")
 
     tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
     content = await file.read()
@@ -89,13 +91,13 @@ async def upload_video(file: UploadFile = File(...), context_id: int = 0):
 
     execute_update("""
         INSERT INTO videos (video_id, filename, volume_path, file_size_bytes, duration_seconds,
-            fps, resolution, upload_timestamp, status, source, context_id, context_name)
-        VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s, %(res)s, NOW(), 'PENDING', 'UPLOAD', %(cid)s, %(cname)s)
+            fps, resolution, upload_timestamp, status, source, context_id, context_name, context_color)
+        VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s, %(res)s, NOW(), 'PENDING', 'UPLOAD', %(cid)s, %(cname)s, %(ccolor)s)
     """, {
         "vid": video_id, "name": file.filename, "path": volume_path,
         "size": len(content), "dur": meta.get("duration_seconds", 0),
         "fps": meta.get("fps", 0), "res": meta.get("resolution", ""),
-        "cid": context_id or None, "cname": ctx_name,
+        "cid": context_id or None, "cname": ctx_name, "ccolor": ctx_color,
     })
 
     config = _get_context_config(context_id) if context_id else _get_config()

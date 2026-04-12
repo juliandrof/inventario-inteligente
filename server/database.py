@@ -252,6 +252,8 @@ def _auto_create_tables(conn):
                 created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW());
             ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_id BIGINT;
             ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_name VARCHAR(200);
+            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_color VARCHAR(20);
+            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#2563EB';
         """)
         logger.info("Tables verified/created")
 

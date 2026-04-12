@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchReportVideos, fetchDetections, fetchContexts } from '../api';
-import { useI18n } from '../i18n';
+import { useI18n, ContextBadge } from '../i18n';
 
 function daysAgo(n) {
   const d = new Date();
@@ -212,7 +212,7 @@ function Reports({ navigate }) {
                 {data.items.map((v, i) => (
                   <tr key={i} className="clickable" onClick={() => handleSelect(v)}>
                     <td style={{ fontWeight: 500 }}>{v.filename}</td>
-                    <td>{v.context_name ? <span className="badge badge-analyzing">{v.context_name}</span> : <span style={{color:'#999'}}>-</span>}</td>
+                    <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
                     <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                     <td>
                       {v.overall_risk != null ? (

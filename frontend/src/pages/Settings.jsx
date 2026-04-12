@@ -46,7 +46,7 @@ function ContextsTab() {
   const [toast, setToast] = useState('');
 
   function newForm() {
-    return { name: '', description: '', categories: ['fadiga', 'distracao'], scan_prompt: '', scan_fps: 0.2, detail_fps: 1.0, score_threshold: 4, newCat: '' };
+    return { name: '', description: '', categories: ['fadiga', 'distracao'], scan_prompt: '', scan_fps: 0.2, detail_fps: 1.0, score_threshold: 4, color: '#2563EB', newCat: '' };
   }
   const load = () => { fetchContexts().then(setContexts).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(load, []);
@@ -59,7 +59,7 @@ function ContextsTab() {
   };
   const handleSave = async () => {
     const data = { name: form.name, description: form.description, categories: form.categories, scan_prompt: form.scan_prompt,
-      scan_fps: parseFloat(form.scan_fps), detail_fps: parseFloat(form.detail_fps), score_threshold: parseInt(form.score_threshold) };
+      scan_fps: parseFloat(form.scan_fps), detail_fps: parseFloat(form.detail_fps), score_threshold: parseInt(form.score_threshold), color: form.color || '#2563EB' };
     if (editing === 'new') { await createContext(data); showToast(t('ctx.created')); }
     else { await updateContext(editing, data); showToast(t('ctx.updated')); }
     setEditing(null); load();
@@ -87,6 +87,17 @@ function ContextsTab() {
             <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('ctx.name_placeholder')} /></div>
           <div className="form-group"><label>{t('ctx.description')}</label>
             <input type="text" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('ctx.desc_placeholder')} /></div>
+          <div className="form-group">
+            <label>{t('ctx.color')}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <input type="color" value={form.color || '#2563EB'} onChange={e => setForm({ ...form, color: e.target.value })}
+                style={{ width: 48, height: 36, border: '1px solid #ddd', borderRadius: 8, padding: 2, cursor: 'pointer' }} />
+              <span style={{ padding: '4px 14px', borderRadius: 12, fontSize: 13, fontWeight: 500, color: 'white', background: form.color || '#2563EB' }}>
+                {form.name || 'Preview'}
+              </span>
+              <span style={{ fontSize: 12, color: '#999', fontFamily: 'monospace' }}>{form.color || '#2563EB'}</span>
+            </div>
+          </div>
         </div>
         <div className="card">
           <div className="card-title">{t('ctx.categories_title')}<Tooltip text={t('tip.categories')} /></div>

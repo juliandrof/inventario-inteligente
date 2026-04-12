@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchVideo, fetchDetections, fetchPendingVideos, fetchContexts, confirmDetection, rejectDetection } from '../api';
-import { useI18n } from '../i18n';
+import { useI18n, ContextBadge } from '../i18n';
 
 function VideoReview({ navigate, pageParams }) {
   const { t } = useI18n();
@@ -146,7 +146,7 @@ function VideoReview({ navigate, pageParams }) {
                 <div style={{ padding: 16 }}>
                   <div style={{ marginBottom: 4 }}>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{v.filename}</div>
-                    {v.context_name && <span className="badge badge-analyzing" style={{ fontSize: 10, marginTop: 4, display: 'inline-block' }}>{v.context_name}</span>}
+                    {v.context_name && <ContextBadge name={v.context_name} color={v.context_color} style={{ marginTop: 4 }} />}
                   </div>
                   <div style={{ fontSize: 12, color: '#999', display: 'flex', gap: 12 }}>
                     <span>{v.total_detections || 0} {t('videos.detections').toLowerCase()}</span>
