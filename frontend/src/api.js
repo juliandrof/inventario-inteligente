@@ -72,6 +72,12 @@ export const uploadLogo = async (file) => {
   return res.json();
 };
 
+// Reports (paginated)
+export const fetchReportVideos = (params = {}) => {
+  const qs = Object.entries(params).filter(([,v]) => v != null && v !== '').map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  return request(`/reports/videos${qs ? '?' + qs : ''}`);
+};
+
 // Catalog Browser
 export const fetchCatalogs = () => request('/catalog/catalogs');
 export const fetchSchemas = (catalog) => request(`/catalog/schemas/${catalog}`);
