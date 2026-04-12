@@ -282,38 +282,58 @@ class StreamManager:
             self._log(stream_id, "INFO", f"Finished. Status={stream['status']}, Windows={stream['windows_processed']}, Detections={stream['total_detections']}")
 
     def _save_window_video(self, stream_id, frames, window_label):
-        """Encode captured frames into an MP4 file and upload to Volume."""
+        """Encode captured frames into a browser-compatible H.264 MP4 and upload to Volume."""
+        import subprocess
+        import numpy as np
+        tmp_avi = tempfile.NamedTemporaryFile(suffix=".avi", delete=False)
+        tmp_avi.close()
+        tmp_mp4 = tmp_avi.name.replace(".avi", ".mp4")
         try:
-            tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-            tmp.close()
-            # Decode first frame to get dimensions
-            first_img = cv2.imdecode(
-                __import__("numpy").frombuffer(frames[0][2], dtype=__import__("numpy").uint8),
-                cv2.IMREAD_COLOR,
-            )
+            first_img = cv2.imdecode(np.frombuffer(frames[0][2], dtype=np.uint8), cv2.IMREAD_COLOR)
             h, w = first_img.shape[:2]
             fps_out = max(1.0, len(frames) / max(1, frames[-1][1] - frames[0][1])) if len(frames) > 1 else 1.0
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(tmp.name, fourcc, fps_out, (w, h))
-            import numpy as np
+
+            # Write as MJPEG AVI (always works with OpenCV)
+            fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            writer = cv2.VideoWriter(tmp_avi.name, fourcc, fps_out, (w, h))
             for _, _, jpeg_bytes in frames:
                 img = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
                     writer.write(img)
             writer.release()
 
+            # Find ffmpeg binary (system or imageio-bundled)
+            ffmpeg_bin = "ffmpeg"
+            try:
+                import imageio_ffmpeg
+                ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+            except ImportError:
+                pass
+
+            # Convert to H.264 MP4 with ffmpeg (browser-compatible)
+            result = subprocess.run(
+                [ffmpeg_bin, "-y", "-i", tmp_avi.name, "-c:v", "libx264",
+                 "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                 "-preset", "ultrafast", "-crf", "28", tmp_mp4],
+                capture_output=True, timeout=120,
+            )
+            if result.returncode != 0:
+                self._log(stream_id, "WARN", f"ffmpeg failed: {result.stderr.decode()[:100]}")
+                return None
+
             volume_path = f"{VIDEO_VOLUME}/{window_label}.mp4"
             ws = get_workspace_client()
-            with open(tmp.name, "rb") as f:
+            with open(tmp_mp4, "rb") as f:
                 ws.files.upload(volume_path, f, overwrite=True)
-            os.unlink(tmp.name)
-            self._log(stream_id, "OK", f"Window video saved: {window_label}.mp4")
+            self._log(stream_id, "OK", f"Window video saved: {window_label}.mp4 ({os.path.getsize(tmp_mp4)} bytes)")
             return volume_path
         except Exception as e:
             self._log(stream_id, "WARN", f"Could not save window video: {e}")
-            if os.path.exists(tmp.name):
-                os.unlink(tmp.name)
             return None
+        finally:
+            for p in [tmp_avi.name, tmp_mp4]:
+                if os.path.exists(p):
+                    os.unlink(p)
 
     def _process_window(self, stream_id, stream, frames, window_num, categories, scan_prompt, threshold, config, context_id, context_name):
         if not frames:
