@@ -119,9 +119,12 @@ function VideoReview({ navigate, pageParams }) {
                 </div>
                 {/* Info */}
                 <div style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{v.filename}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{v.filename}</div>
+                    {v.context_name && <span className="badge badge-analyzing" style={{ fontSize: 10 }}>{v.context_name}</span>}
+                  </div>
                   <div style={{ fontSize: 12, color: '#999', display: 'flex', gap: 12 }}>
-                    <span>{v.total_detections || 0} deteccoes</span>
+                    <span>{v.total_detections || 0} {t('videos.detections').toLowerCase()}</span>
                     {v.duration_seconds && <span>{Math.round(v.duration_seconds)}s</span>}
                   </div>
                   {v.scores_json && (
