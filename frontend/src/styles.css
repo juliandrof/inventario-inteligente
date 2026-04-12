@@ -260,7 +260,7 @@ body {
   background: var(--dbxsc-primary);
   color: white;
 }
-.btn-primary:hover { background: var(--dbxsc-primary-dark); }
+.btn-primary:hover { background: var(--dbxsc-primary); opacity: 0.85; filter: brightness(0.85); }
 
 .btn-success {
   background: var(--dbxsc-success);

@@ -70,3 +70,9 @@ export const uploadLogo = async (file) => {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 };
+
+// Catalog Browser
+export const fetchCatalogs = () => request('/catalog/catalogs');
+export const fetchSchemas = (catalog) => request(`/catalog/schemas/${catalog}`);
+export const fetchVolumes = (catalog, schema) => request(`/catalog/volumes/${catalog}/${schema}`);
+export const fetchFiles = (path) => request(`/catalog/files?path=${encodeURIComponent(path)}`);

@@ -6,6 +6,7 @@ import VideoReview from './pages/VideoReview';
 import BatchProcessing from './pages/BatchProcessing';
 import Configurations from './pages/Configurations';
 import BrandingSettings from './pages/BrandingSettings';
+import Reports from './pages/Reports';
 import { fetchBranding } from './api';
 
 const PAGES = [
@@ -14,13 +15,14 @@ const PAGES = [
   { key: 'batch', label: 'Processamento Batch', icon: 'batch' },
   { key: 'videos', label: 'Videos Processados', icon: 'list' },
   { key: 'review', label: 'Revisao', icon: 'review' },
+  { key: 'reports', label: 'Relatorio', icon: 'list' },
   { key: 'config', label: 'Configuracoes', icon: 'config' },
   { key: 'branding', label: 'Visual / Marca', icon: 'palette' },
 ];
 
 const PAGE_COMPONENTS = {
   dashboard: Dashboard, upload: VideoUpload, batch: BatchProcessing,
-  videos: VideoList, review: VideoReview, config: Configurations, branding: BrandingSettings,
+  videos: VideoList, review: VideoReview, reports: Reports, config: Configurations, branding: BrandingSettings,
 };
 
 const ICONS = {

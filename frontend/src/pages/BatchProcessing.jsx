@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { startBatch, fetchBatches } from '../api';
+import { startBatch, fetchBatches, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
 
 function BatchProcessing({ navigate }) {
-  const [volumePath, setVolumePath] = useState('/Volumes/jsf_dbxsc_demo/main/test_videos');
+  const [volumePath, setVolumePath] = useState('');
   const [batch, setBatch] = useState(null);
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [previewVideoId, setPreviewVideoId] = useState(null);
   const eventSourceRef = useRef(null);
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [catalogs, setCatalogs] = useState([]);
+  const [schemas, setSchemas] = useState([]);
+  const [volumes, setVolumes] = useState([]);
+  const [selCatalog, setSelCatalog] = useState('');
+  const [selSchema, setSelSchema] = useState('');
 
   useEffect(() => {
     fetchBatches().then(setBatches).catch(() => {});
@@ -60,20 +66,73 @@ function BatchProcessing({ navigate }) {
         <div className="card-title">Iniciar Processamento</div>
         <div className="form-group">
           <label>Caminho do Volume</label>
-          <input
-            type="text"
-            value={volumePath}
-            onChange={(e) => setVolumePath(e.target.value)}
-            placeholder="/Volumes/catalog/schema/volume_name"
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={volumePath}
+              onChange={(e) => setVolumePath(e.target.value)}
+              placeholder="/Volumes/catalog/schema/volume_name"
+              style={{ flex: 1 }}
+            />
+            <button className="btn btn-secondary" onClick={() => {
+              setShowBrowser(!showBrowser);
+              if (!showBrowser && catalogs.length === 0) fetchCatalogs().then(setCatalogs).catch(() => {});
+            }}>
+              Navegar
+            </button>
+          </div>
         </div>
+
+        {/* Unity Catalog Browser */}
+        {showBrowser && (
+          <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 16, marginBottom: 16, border: '1px solid #e0e0e0' }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Catalogo</label>
+                <select value={selCatalog} onChange={e => {
+                  setSelCatalog(e.target.value);
+                  setSelSchema('');
+                  setVolumes([]);
+                  if (e.target.value) fetchSchemas(e.target.value).then(setSchemas).catch(() => {});
+                }} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}>
+                  <option value="">Selecione...</option>
+                  {catalogs.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Schema</label>
+                <select value={selSchema} onChange={e => {
+                  setSelSchema(e.target.value);
+                  if (e.target.value && selCatalog) fetchVolumes(selCatalog, e.target.value).then(setVolumes).catch(() => {});
+                }} style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}>
+                  <option value="">Selecione...</option>
+                  {schemas.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {volumes.length > 0 && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>Volumes</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {volumes.map(v => (
+                    <button key={v.name} className={`btn btn-sm ${volumePath === v.path ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => { setVolumePath(v.path); setShowBrowser(false); }}>
+                      {v.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
           Videos ja processados anteriormente serao ignorados automaticamente.
         </p>
         <button
           className="btn btn-primary"
           onClick={handleStart}
-          disabled={loading || (batch && batch.status === 'RUNNING')}
+          disabled={loading || !volumePath.trim() || (batch && batch.status === 'RUNNING')}
         >
           {loading ? 'Iniciando...' : 'Iniciar Processamento'}
         </button>
