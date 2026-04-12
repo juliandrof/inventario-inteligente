@@ -7,7 +7,7 @@ command:
   - "8000"
 env:
   - name: DBXSC_AI_DB_HOST
-    value: ""
+    value: "***LAKEBASE_HOST***"
   - name: DBXSC_AI_DB_PORT
     value: "5432"
   - name: DBXSC_AI_DB_NAME

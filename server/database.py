@@ -88,6 +88,23 @@ def get_connection():
         host, user, password = _get_lakebase_credentials()
         logger.info(f"Connecting to Lakebase: host={host}, db={DB_NAME}, user={user}")
 
+        # First ensure the database exists
+        try:
+            tmp_conn = psycopg2.connect(
+                host=host, port=DB_PORT, database="postgres",
+                user=user, password=password, sslmode="require",
+            )
+            tmp_conn.autocommit = True
+            tmp_cur = tmp_conn.cursor()
+            tmp_cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DB_NAME,))
+            if not tmp_cur.fetchone():
+                tmp_cur.execute(f'CREATE DATABASE "{DB_NAME}"')
+                logger.info(f"Created database: {DB_NAME}")
+            tmp_cur.close()
+            tmp_conn.close()
+        except Exception as e:
+            logger.warning(f"Could not check/create database: {e}")
+
         _connection = psycopg2.connect(
             host=host,
             port=DB_PORT,
@@ -110,10 +127,86 @@ def get_workspace_client() -> WorkspaceClient:
 
 async def init_db_pool():
     try:
-        get_connection()
+        conn = get_connection()
         logger.info("Successfully connected to Lakebase PostgreSQL")
+        _auto_create_tables(conn)
     except Exception as e:
         logger.warning(f"Could not connect on startup: {e}")
+
+
+def _auto_create_tables(conn):
+    """Create tables if they don't exist (auto-setup on first deploy)."""
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS videos (
+                video_id BIGINT PRIMARY KEY, filename VARCHAR(500) NOT NULL,
+                volume_path VARCHAR(1000) NOT NULL, file_size_bytes BIGINT,
+                duration_seconds DOUBLE PRECISION, fps DOUBLE PRECISION,
+                resolution VARCHAR(50), upload_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+                status VARCHAR(20) NOT NULL DEFAULT 'PENDING', progress_pct DOUBLE PRECISION DEFAULT 0,
+                source VARCHAR(20), uploaded_by VARCHAR(200), error_message TEXT);
+            CREATE TABLE IF NOT EXISTS analysis_results (
+                result_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
+                analysis_timestamp TIMESTAMP NOT NULL DEFAULT NOW(), scores_json TEXT NOT NULL,
+                overall_risk DOUBLE PRECISION, total_detections INTEGER,
+                scan_fps DOUBLE PRECISION, detail_fps DOUBLE PRECISION,
+                model_used VARCHAR(200), config_snapshot TEXT);
+            CREATE TABLE IF NOT EXISTS detections (
+                detection_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
+                result_id BIGINT NOT NULL REFERENCES analysis_results(result_id),
+                timestamp_sec DOUBLE PRECISION NOT NULL, category VARCHAR(100) NOT NULL,
+                score INTEGER NOT NULL, confidence DOUBLE PRECISION, ai_description TEXT,
+                thumbnail_path VARCHAR(500), frame_index BIGINT,
+                review_status VARCHAR(20) DEFAULT 'PENDING', reviewed_by VARCHAR(200),
+                reviewed_at TIMESTAMP, reviewer_notes TEXT);
+            CREATE TABLE IF NOT EXISTS processing_log (
+                log_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
+                volume_path VARCHAR(1000) NOT NULL, file_hash VARCHAR(64),
+                processed_at TIMESTAMP NOT NULL DEFAULT NOW(), status VARCHAR(20) NOT NULL,
+                processing_time_sec DOUBLE PRECISION);
+            CREATE TABLE IF NOT EXISTS configurations (
+                config_id BIGINT PRIMARY KEY, config_key VARCHAR(200) NOT NULL UNIQUE,
+                config_value TEXT NOT NULL, description TEXT,
+                updated_at TIMESTAMP DEFAULT NOW(), updated_by VARCHAR(200));
+            CREATE TABLE IF NOT EXISTS branding (
+                setting_id BIGINT PRIMARY KEY, setting_key VARCHAR(200) NOT NULL UNIQUE,
+                setting_value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT NOW());
+            CREATE TABLE IF NOT EXISTS review_log (
+                review_log_id BIGINT PRIMARY KEY, detection_id BIGINT NOT NULL,
+                video_id BIGINT NOT NULL, action VARCHAR(20) NOT NULL,
+                previous_status VARCHAR(20), reviewer VARCHAR(200) NOT NULL,
+                notes TEXT, action_timestamp TIMESTAMP NOT NULL DEFAULT NOW());
+        """)
+        logger.info("Tables verified/created")
+
+        # Seed defaults if empty
+        cur.execute("SELECT COUNT(*) FROM configurations")
+        if cur.fetchone()[0] == 0:
+            cur.execute("""
+                INSERT INTO configurations (config_id, config_key, config_value, description, updated_at) VALUES
+                (1, 'detection_categories', '["fadiga", "distracao"]', 'Detection categories', NOW()),
+                (2, 'scan_prompt', 'Analyze this truck cabin camera image. Look for fatigue and distraction. Rate each 1-10.', 'Analysis prompt', NOW()),
+                (3, 'scan_fps', '0.2', 'Frames per second for scanning', NOW()),
+                (4, 'detail_fps', '1.0', 'FPS for detailed analysis', NOW()),
+                (5, 'score_threshold', '4', 'Minimum score to flag', NOW())
+            """)
+            logger.info("Default configurations seeded")
+
+        cur.execute("SELECT COUNT(*) FROM branding")
+        if cur.fetchone()[0] == 0:
+            cur.execute("""
+                INSERT INTO branding (setting_id, setting_key, setting_value, updated_at) VALUES
+                (1, 'primary_color', '#2563EB', NOW()),
+                (2, 'secondary_color', '#1E293B', NOW()),
+                (3, 'accent_color', '#3B82F6', NOW()),
+                (4, 'sidebar_color', '#0F172A', NOW())
+            """)
+            logger.info("Default branding seeded")
+    except Exception as e:
+        logger.error(f"Auto-setup failed: {e}")
+    finally:
+        cur.close()
 
 
 async def close_db_pool():
