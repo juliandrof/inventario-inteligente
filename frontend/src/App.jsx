@@ -4,8 +4,7 @@ import VideoUpload from './pages/VideoUpload';
 import VideoList from './pages/VideoList';
 import VideoReview from './pages/VideoReview';
 import BatchProcessing from './pages/BatchProcessing';
-import Configurations from './pages/Configurations';
-import BrandingSettings from './pages/BrandingSettings';
+import Settings from './pages/Settings';
 import Reports from './pages/Reports';
 import { fetchBranding } from './api';
 import { useI18n } from './i18n';
@@ -17,13 +16,12 @@ const PAGE_KEYS = [
   { key: 'videos', labelKey: 'menu.videos', icon: 'list' },
   { key: 'review', labelKey: 'menu.review', icon: 'review' },
   { key: 'reports', labelKey: 'menu.reports', icon: 'list' },
-  { key: 'config', labelKey: 'menu.contexts', icon: 'config' },
-  { key: 'branding', labelKey: 'menu.branding', icon: 'palette' },
+  { key: 'settings', labelKey: 'menu.settings', icon: 'config' },
 ];
 
 const PAGE_COMPONENTS = {
   dashboard: Dashboard, upload: VideoUpload, batch: BatchProcessing,
-  videos: VideoList, review: VideoReview, reports: Reports, config: Configurations, branding: BrandingSettings,
+  videos: VideoList, review: VideoReview, reports: Reports, settings: Settings,
 };
 
 const ICONS = {

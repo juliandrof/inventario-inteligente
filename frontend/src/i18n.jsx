@@ -205,6 +205,22 @@ const translations = {
     'brand.logo_saved': 'Logo atualizado com sucesso!',
     'brand.restored': 'Cores restauradas para o padrao!',
 
+    // Settings
+    'menu.settings': 'Configuracoes',
+    'settings.title': 'Configuracoes',
+    'settings.subtitle': 'Modelo de IA, contextos de analise e identidade visual',
+    'settings.tab_contexts': 'Contextos',
+    'settings.tab_model': 'Modelo de IA',
+    'settings.tab_branding': 'Visual / Marca',
+    'settings.model_title': 'Modelo de Visao',
+    'settings.model_desc': 'Endpoint do modelo de IA que sera usado para analisar os frames dos videos. O modelo deve suportar entrada de imagem (visao).',
+    'settings.model_endpoint': 'Nome do Serving Endpoint',
+    'settings.model_examples': 'Exemplos de modelos compativeis:',
+    'settings.model_save': 'Salvar Modelo',
+    'settings.model_saved': 'Modelo atualizado com sucesso!',
+    'settings.model_current': 'Modelo atual',
+    'tip.model': 'Nome do serving endpoint no Databricks que sera chamado para analisar cada frame. O modelo deve aceitar imagens (multimodal). Modelos maiores sao mais precisos mas mais caros e lentos.',
+
     // Common
     'common.loading': 'Carregando...',
     'common.error': 'Erro',
@@ -405,6 +421,22 @@ const translations = {
     'brand.logo_saved': 'Logo updated successfully!',
     'brand.restored': 'Colors restored to default!',
 
+    // Settings
+    'menu.settings': 'Settings',
+    'settings.title': 'Settings',
+    'settings.subtitle': 'AI model, analysis contexts, and branding',
+    'settings.tab_contexts': 'Contexts',
+    'settings.tab_model': 'AI Model',
+    'settings.tab_branding': 'Branding',
+    'settings.model_title': 'Vision Model',
+    'settings.model_desc': 'Serving endpoint of the AI model used to analyze video frames. The model must support image input (vision).',
+    'settings.model_endpoint': 'Serving Endpoint Name',
+    'settings.model_examples': 'Compatible model examples:',
+    'settings.model_save': 'Save Model',
+    'settings.model_saved': 'Model updated successfully!',
+    'settings.model_current': 'Current model',
+    'tip.model': 'Name of the Databricks serving endpoint called to analyze each frame. Must accept images (multimodal). Larger models are more accurate but slower and more expensive.',
+
     'common.loading': 'Loading...',
     'common.error': 'Error',
     'common.language': 'Language',
@@ -603,6 +635,22 @@ const translations = {
     'brand.saved': 'Colores actualizados con exito!',
     'brand.logo_saved': 'Logo actualizado con exito!',
     'brand.restored': 'Colores restaurados al predeterminado!',
+
+    // Settings
+    'menu.settings': 'Configuracion',
+    'settings.title': 'Configuracion',
+    'settings.subtitle': 'Modelo de IA, contextos de analisis e identidad visual',
+    'settings.tab_contexts': 'Contextos',
+    'settings.tab_model': 'Modelo de IA',
+    'settings.tab_branding': 'Visual / Marca',
+    'settings.model_title': 'Modelo de Vision',
+    'settings.model_desc': 'Endpoint del modelo de IA que se usara para analizar los frames de los videos. El modelo debe soportar entrada de imagen (vision).',
+    'settings.model_endpoint': 'Nombre del Serving Endpoint',
+    'settings.model_examples': 'Ejemplos de modelos compatibles:',
+    'settings.model_save': 'Guardar Modelo',
+    'settings.model_saved': 'Modelo actualizado con exito!',
+    'settings.model_current': 'Modelo actual',
+    'tip.model': 'Nombre del serving endpoint en Databricks llamado para analizar cada frame. Debe aceptar imagenes (multimodal). Modelos mas grandes son mas precisos pero mas lentos y caros.',
 
     'common.loading': 'Cargando...',
     'common.error': 'Error',

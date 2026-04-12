@@ -11,7 +11,19 @@ from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
-MODEL = os.environ.get("FMAPI_MODEL", "databricks-llama-4-maverick")
+_DEFAULT_MODEL = os.environ.get("FMAPI_MODEL", "databricks-llama-4-maverick")
+
+
+def _get_model() -> str:
+    """Get model name from DB config, falling back to env var."""
+    try:
+        from server.database import execute_query
+        rows = execute_query("SELECT config_value FROM configurations WHERE config_key = 'fmapi_model'")
+        if rows and rows[0]["config_value"]:
+            return rows[0]["config_value"]
+    except Exception:
+        pass
+    return _DEFAULT_MODEL
 
 
 def _get_auth():
@@ -34,7 +46,8 @@ def _get_auth():
 def _call_serving(payload: dict, timeout: int = 120) -> dict:
     """Call serving endpoint via HTTP."""
     host, token = _get_auth()
-    url = f"{host}/serving-endpoints/{MODEL}/invocations"
+    model = _get_model()
+    url = f"{host}/serving-endpoints/{model}/invocations"
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
