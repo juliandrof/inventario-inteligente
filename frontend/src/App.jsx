@@ -57,9 +57,11 @@ function App() {
     }).catch(() => {});
   }, [currentPage]);
 
+  const [pageKey, setPageKey] = useState(0);
   const navigate = useCallback((page, params = {}) => {
     setCurrentPage(page);
     setPageParams(params);
+    if (Object.keys(params).length === 0) setPageKey(k => k + 1);
   }, []);
 
   const PageComponent = PAGE_COMPONENTS[currentPage] || Dashboard;
@@ -94,7 +96,7 @@ function App() {
         <div className="sidebar-footer">DBXSC AI v1.0 - Driver Safety Monitoring</div>
       </aside>
       <main className="main-content">
-        <PageComponent navigate={navigate} pageParams={pageParams} />
+        <PageComponent key={`${currentPage}-${pageKey}`} navigate={navigate} pageParams={pageParams} />
       </main>
     </div>
   );

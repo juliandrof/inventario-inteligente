@@ -102,30 +102,47 @@ function Reports({ navigate }) {
           )}
 
           {/* Detections list */}
-          <div className="card">
-            <div className="card-title">Deteccoes ({detections.length})</div>
-            {detections.length === 0 ? (
-              <p style={{ color: '#999' }}>Nenhuma deteccao neste video</p>
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr><th>Momento</th><th>Categoria</th><th>Score</th><th>Status</th><th>Descricao IA</th><th>Notas</th></tr>
-                </thead>
-                <tbody>
-                  {detections.map((d, i) => (
-                    <tr key={i}>
-                      <td>{formatTime(d.timestamp_sec)}</td>
-                      <td style={{ textTransform: 'capitalize' }}>{d.category}</td>
-                      <td><span className={`score-gauge ${getScoreClass(d.score)}`}>{d.score}</span></td>
-                      <td><span className={`badge badge-${(d.review_status || 'pending').toLowerCase()}`}>{d.review_status}</span></td>
-                      <td style={{ fontSize: 12, maxWidth: 300 }}>{d.ai_description}</td>
-                      <td style={{ fontSize: 12, fontStyle: 'italic' }}>{d.reviewer_notes || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          {(() => {
+            const reviewed = detections.filter(d => d.review_status === 'CONFIRMED' || d.review_status === 'REJECTED');
+            const pending = detections.filter(d => d.review_status === 'PENDING');
+            return (
+              <>
+                <div className="card">
+                  <div className="card-title">Deteccoes Revisadas ({reviewed.length})</div>
+                  {reviewed.length === 0 ? (
+                    <p style={{ color: '#999' }}>Nenhuma deteccao revisada neste video</p>
+                  ) : (
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Momento</th><th>Categoria</th><th>Score</th><th>Resultado</th><th>Descricao IA</th><th>Notas do Revisor</th></tr>
+                      </thead>
+                      <tbody>
+                        {reviewed.map((d, i) => (
+                          <tr key={i}>
+                            <td>{formatTime(d.timestamp_sec)}</td>
+                            <td style={{ textTransform: 'capitalize' }}>{d.category}</td>
+                            <td><span className={`score-gauge ${getScoreClass(d.score)}`}>{d.score}</span></td>
+                            <td><span className={`badge badge-${d.review_status.toLowerCase()}`}>{d.review_status === 'CONFIRMED' ? 'Confirmado' : 'Rejeitado'}</span></td>
+                            <td style={{ fontSize: 12, maxWidth: 300 }}>{d.ai_description}</td>
+                            <td style={{ fontSize: 12, fontStyle: 'italic' }}>{d.reviewer_notes || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                {pending.length > 0 && (
+                  <div className="card" style={{ borderLeft: '4px solid var(--dbxsc-warning, #f39c12)' }}>
+                    <div className="card-title" style={{ color: '#856404' }}>Aguardando Revisao ({pending.length})</div>
+                    <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>Estas deteccoes ainda nao foram revisadas. Clique em "Retornar para Analise" para revisar.</p>
+                    <button className="btn btn-sm btn-primary" onClick={() => navigate('review', { videoId: selectedVideo.video_id })}>
+                      Revisar Agora
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       ) : (
         /* Video list */
