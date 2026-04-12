@@ -1,4 +1,4 @@
-"""Database connection module for Scenic Crawler AI - Lakebase (PostgreSQL)."""
+"""Database connection module for Databricks Scenic Crawler AI - Lakebase (PostgreSQL)."""
 
 import os
 import json

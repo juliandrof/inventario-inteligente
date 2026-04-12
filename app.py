@@ -1,4 +1,4 @@
-"""Scenic Crawler AI - Video Analysis App (Lakebase Edition)."""
+"""Databricks Scenic Crawler AI - Video Analysis App (Lakebase Edition)."""
 
 import os
 import logging
@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Scenic Crawler AI application...")
+    logger.info("Starting Databricks Scenic Crawler AI application...")
     await init_db_pool()
     yield
-    logger.info("Shutting down Scenic Crawler AI application...")
+    logger.info("Shutting down Databricks Scenic Crawler AI application...")
     await close_db_pool()
 
 
 app = FastAPI(
-    title="Scenic Crawler AI",
+    title="Databricks Scenic Crawler AI",
     description="AI-powered Video Analysis - Powered by Lakebase",
     version="1.0.0",
     lifespan=lifespan,
@@ -68,7 +68,7 @@ if frontend_dist.exists():
 else:
     @app.get("/")
     async def root():
-        return {"message": "Scenic Crawler AI API - Frontend not built yet"}
+        return {"message": "Databricks Scenic Crawler AI API - Frontend not built yet"}
 
 
 if __name__ == "__main__":
