@@ -201,7 +201,7 @@ def _save_results(video_id: int, detections: list[dict], categories: list[str], 
         INSERT INTO analysis_results
         (result_id, video_id, analysis_timestamp, scores_json, overall_risk, total_detections,
          scan_fps, detail_fps, model_used, config_snapshot)
-        VALUES (%(rid)s, %(vid)s, current_timestamp(), %(scores)s, %(risk)s, %(total)s,
+        VALUES (%(rid)s, %(vid)s, NOW(), %(scores)s, %(risk)s, %(total)s,
                 %(sfps)s, %(dfps)s, %(model)s, %(cfg)s)
     """, {
         "rid": result_id,
@@ -241,7 +241,7 @@ def _save_results(video_id: int, detections: list[dict], categories: list[str], 
     execute_update(f"""
         INSERT INTO processing_log
         (log_id, video_id, volume_path, processed_at, status, processing_time_sec)
-        SELECT %(lid)s, video_id, volume_path, current_timestamp(), 'SUCCESS', 0
+        SELECT %(lid)s, video_id, volume_path, NOW(), 'SUCCESS', 0
         FROM videos WHERE video_id = %(vid)s
     """, {"lid": log_id, "vid": video_id})
 

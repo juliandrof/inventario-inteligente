@@ -139,7 +139,7 @@ class BatchManager:
                         (video_id, filename, volume_path, file_size_bytes, duration_seconds, fps,
                          resolution, upload_timestamp, status, source, uploaded_by)
                         VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s,
-                                %(res)s, current_timestamp(), 'PENDING', 'BATCH', %(user)s)
+                                %(res)s, NOW(), 'PENDING', 'BATCH', %(user)s)
                     """, {
                         "vid": video_id,
                         "name": vf["name"],
