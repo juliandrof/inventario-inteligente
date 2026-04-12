@@ -60,6 +60,7 @@ async def start_batch(req: BatchStartRequest):
                 "score_threshold": ctx.get("score_threshold", 4),
             }
             ctx_name = ctx["name"]
+            config["context_color"] = ctx.get("color")
         else:
             config = _get_config()
     else:

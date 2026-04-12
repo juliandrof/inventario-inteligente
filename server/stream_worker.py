@@ -170,13 +170,13 @@ class StreamManager:
 
         execute_update("""
             INSERT INTO videos (video_id, filename, volume_path, duration_seconds,
-                upload_timestamp, status, source, context_id, context_name)
-            VALUES (%(vid)s, %(name)s, %(path)s, %(dur)s, NOW(), 'ANALYZING', 'STREAM', %(cid)s, %(cname)s)
+                upload_timestamp, status, source, context_id, context_name, context_color)
+            VALUES (%(vid)s, %(name)s, %(path)s, %(dur)s, NOW(), 'ANALYZING', 'STREAM', %(cid)s, %(cname)s, %(ccolor)s)
         """, {
             "vid": video_id, "name": window_label,
             "path": f"stream://{stream['stream_url']}#w{window_num}",
             "dur": end_ts - start_ts,
-            "cid": context_id or None, "cname": context_name,
+            "cid": context_id or None, "cname": context_name, "ccolor": config.get("context_color"),
         })
 
         # Analyze frames

@@ -38,6 +38,7 @@ async def start_stream(req: StreamStartRequest):
         "scan_fps": ctx.get("scan_fps", 0.2),
         "detail_fps": ctx.get("detail_fps", 1.0),
         "score_threshold": ctx.get("score_threshold", 4),
+        "context_color": ctx.get("color"),
     }
 
     manager = StreamManager()
