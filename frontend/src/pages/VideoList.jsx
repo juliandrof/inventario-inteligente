@@ -9,6 +9,7 @@ function VideoList({ navigate }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
   const [contextFilter, setContextFilter] = useState('');
+  const [search, setSearch] = useState('');
 
   const loadRef = useRef(false);
   const load = () => {
@@ -25,6 +26,7 @@ function VideoList({ navigate }) {
   const filtered = regularVideos.filter(v => {
     if (filter !== 'ALL' && v.status !== filter) return false;
     if (contextFilter && v.context_name !== contextFilter) return false;
+    if (search && !v.filename.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -41,6 +43,8 @@ function VideoList({ navigate }) {
       <div className="page-header"><h1>{t('videos.title')}</h1><p>{regularVideos.length} videos</p></div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input type="text" placeholder={t('reports.search')} value={search} onChange={e => setSearch(e.target.value)}
+          style={{ padding: '6px 12px', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, minWidth: 180 }} />
         {['ALL', 'PENDING', 'SCANNING', 'ANALYZING', 'COMPLETED', 'FAILED'].map(s => (
           <button key={s} className={`btn btn-sm ${filter === s ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(s)}>
             {s === 'ALL' ? t('videos.all') : s}
