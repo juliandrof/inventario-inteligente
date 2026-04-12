@@ -100,7 +100,7 @@ function BrandingSettings() {
               <img src="/api/branding/logo" alt="Logo atual" style={{ maxHeight: 80, maxWidth: 200, marginBottom: 12 }} />
             ) : (
               <div style={{ padding: 20, background: 'var(--dbxsc-dark)', borderRadius: 12, display: 'inline-block' }}>
-                <span style={{ color: 'white', fontSize: 18, fontWeight: 700 }}>DBXSC AI</span>
+                <span style={{ color: 'white', fontSize: 18, fontWeight: 700 }}>Scenic Crawler AI</span>
               </div>
             )}
             <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>

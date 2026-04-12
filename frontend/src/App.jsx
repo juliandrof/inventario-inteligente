@@ -74,7 +74,7 @@ function App() {
           <div className="sidebar-logo">
             {customLogo ? <img src="/api/branding/logo" alt="Logo" className="custom-logo" /> : <DBXSCLogo />}
           </div>
-          <div className=sidebar-subtitle">DBXSC AI</div>
+          <div className="sidebar-subtitle">Scenic Crawler AI</div>
         </div>
         <nav className="sidebar-nav">
           {PAGE_KEYS.map(page => (
@@ -115,7 +115,8 @@ function DBXSC AILogo() {
       <path d="M17 12C14 12 11 15 11 19C11 23 14 27 17 27C20 27 23 23 23 19C23 15 20 12 17 12Z" fill="white" opacity="0.9"/>
       <circle cx="17" cy="19" r="3" fill="var(--dbxsc-primary, #2563EB)"/>
       <path d="M15 10L17 7L19 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <text x="38" y="26" fontFamily="Inter, sans-serif" fontSize="15" fontWeight="700" fill="white">DBXSC AI</text>
+      <text x="38" y="20" fontFamily="Inter, sans-serif" fontSize="11" fontWeight="700" fill="white">Scenic</text>
+      <text x="38" y="32" fontFamily="Inter, sans-serif" fontSize="11" fontWeight="700" fill="white">Crawler AI</text>
     </svg>
   );
 }

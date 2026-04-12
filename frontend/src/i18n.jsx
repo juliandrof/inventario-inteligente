@@ -11,7 +11,7 @@ const translations = {
     'menu.reports': 'Relatorio',
     'menu.contexts': 'Contextos',
     'menu.branding': 'Visual / Marca',
-    'menu.footer': 'DBXSC AI v1.0 - Monitoramento de Seguranca',
+    'menu.footer': 'Scenic Crawler AI v1.0',
 
     // Dashboard
     'dash.title': 'Dashboard',
@@ -220,7 +220,7 @@ const translations = {
     'menu.reports': 'Report',
     'menu.contexts': 'Contexts',
     'menu.branding': 'Branding',
-    'menu.footer': 'DBXSC AI v1.0 - Safety Monitoring',
+    'menu.footer': 'Scenic Crawler AI v1.0',
 
     'dash.title': 'Dashboard',
     'dash.subtitle': 'Monitoring overview',
@@ -419,7 +419,7 @@ const translations = {
     'menu.reports': 'Informe',
     'menu.contexts': 'Contextos',
     'menu.branding': 'Visual / Marca',
-    'menu.footer': 'DBXSC AI v1.0 - Monitoreo de Seguridad',
+    'menu.footer': 'Scenic Crawler AI v1.0',
 
     'dash.title': 'Panel',
     'dash.subtitle': 'Vision general del monitoreo',
