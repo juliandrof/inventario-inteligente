@@ -100,6 +100,13 @@ export const deleteStream = (id) => request(`/stream/${id}`, { method: 'DELETE' 
 export const fetchStreamLogs = (id) => request(`/stream/${id}/logs`);
 export const fetchStreams = () => request('/stream');
 
+// Storage
+export const fetchStorageSummary = () => request('/storage/summary');
+export const cleanupStorage = (olderThanDays, source = 'ALL') => request('/storage/cleanup', {
+  method: 'POST', body: JSON.stringify({ older_than_days: olderThanDays, source }),
+});
+export const clearAllData = () => request('/storage/clear-all', { method: 'POST' });
+
 // Catalog Browser
 export const fetchCatalogs = () => request('/catalog/catalogs');
 export const fetchSchemas = (catalog) => request(`/catalog/schemas/${catalog}`);

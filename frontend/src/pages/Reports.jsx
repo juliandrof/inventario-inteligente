@@ -209,31 +209,7 @@ function Reports({ navigate }) {
                 <tr><th>{t('reports.file')}</th><th>{t('reports.context')}</th><th>{t('videos.source')}</th><th>{t('reports.duration')}</th><th>{t('reports.score')}</th><th>{t('reports.detections')}</th><th>{t('reports.categories')}</th><th>{t('reports.upload_date')}</th><th>{t('reports.actions')}</th></tr>
               </thead>
               <tbody>
-                {data.items.map((v, i) => (
-                  <tr key={i} className="clickable" onClick={() => handleSelect(v)}>
-                    <td style={{ fontWeight: 500 }}>{v.filename}</td>
-                    <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
-                    <td><span style={{ fontSize: 11, color: '#666' }}>{v.source || '-'}</span></td>
-                    <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
-                    <td>
-                      {v.overall_risk != null ? (
-                        <span className={`score-gauge ${scoreClass(v.overall_risk)}`}>
-                          {typeof v.overall_risk === 'number' ? v.overall_risk.toFixed(1) : v.overall_risk}
-                        </span>
-                      ) : '-'}
-                    </td>
-                    <td>{v.total_detections || 0}</td>
-                    <td style={{ fontSize: 11 }}>
-                      {(() => { try { return Object.entries(JSON.parse(v.scores_json)).map(([k,val]) => `${k}:${val}`).join(' | '); } catch { return '-'; } })()}
-                    </td>
-                    <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp)}</td>
-                    <td>
-                      <button className="btn btn-sm btn-primary" onClick={e => { e.stopPropagation(); navigate('review', { videoId: v.video_id }); }}>
-                        {t('reports.reanalyze')}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                <GroupedVideoRows items={data.items} onSelect={handleSelect} navigate={navigate} />
               </tbody>
             </table>
           </div>
@@ -254,6 +230,107 @@ function Reports({ navigate }) {
         </>
       )}
     </div>
+  );
+}
+
+function getStreamPrefix(filename) {
+  // Match everything before the date suffix _yyyyMMddHHmmss
+  const m = filename.match(/^(.+)_\d{14}$/);
+  return m ? m[1] : null;
+}
+
+function GroupedVideoRows({ items, onSelect, navigate }) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = React.useState({});
+
+  // Separate stream vs non-stream, group stream by prefix
+  const groups = {};
+  const nonStream = [];
+  items.forEach(v => {
+    if (v.source === 'STREAM') {
+      const prefix = getStreamPrefix(v.filename) || v.filename;
+      if (!groups[prefix]) groups[prefix] = [];
+      groups[prefix].push(v);
+    } else {
+      nonStream.push(v);
+    }
+  });
+
+  // Build ordered list: walk original items, emit group header on first encounter
+  const emittedGroups = new Set();
+  const rows = [];
+  items.forEach(v => {
+    if (v.source === 'STREAM') {
+      const prefix = getStreamPrefix(v.filename) || v.filename;
+      if (!emittedGroups.has(prefix)) {
+        emittedGroups.add(prefix);
+        rows.push({ type: 'group', prefix, videos: groups[prefix] });
+      }
+    } else {
+      rows.push({ type: 'single', video: v });
+    }
+  });
+
+  const toggle = (prefix) => setExpanded(prev => ({ ...prev, [prefix]: !prev[prefix] }));
+
+  return rows.map((row, ri) => {
+    if (row.type === 'single') {
+      return <VideoRow key={ri} v={row.video} onSelect={onSelect} navigate={navigate} />;
+    }
+    const { prefix, videos } = row;
+    const totalDet = videos.reduce((s, v) => s + (v.total_detections || 0), 0);
+    const maxRisk = Math.max(...videos.map(v => v.overall_risk || 0));
+    const isOpen = expanded[prefix];
+    return (
+      <React.Fragment key={ri}>
+        <tr className="clickable" onClick={() => toggle(prefix)} style={{ background: '#f8fafc' }}>
+          <td style={{ fontWeight: 600 }}>
+            <span style={{ marginRight: 6 }}>{isOpen ? '[-]' : '[+]'}</span>
+            {prefix} ({videos.length})
+          </td>
+          <td><ContextBadge name={videos[0].context_name} color={videos[0].context_color} /></td>
+          <td><span style={{ fontSize: 11, color: '#666' }}>STREAM</span></td>
+          <td>-</td>
+          <td>
+            {maxRisk > 0 ? <span className={`score-gauge ${scoreClass(maxRisk)}`}>{maxRisk.toFixed(1)}</span> : '-'}
+          </td>
+          <td>{totalDet}</td>
+          <td style={{ fontSize: 11, color: '#999' }}>{videos.length} windows</td>
+          <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(videos[0].upload_timestamp)}</td>
+          <td></td>
+        </tr>
+        {isOpen && videos.map((v, vi) => <VideoRow key={`${ri}-${vi}`} v={v} onSelect={onSelect} navigate={navigate} nested />)}
+      </React.Fragment>
+    );
+  });
+}
+
+function VideoRow({ v, onSelect, navigate, nested }) {
+  const { t } = useI18n();
+  return (
+    <tr className="clickable" onClick={() => onSelect(v)} style={nested ? { background: '#fafbfc' } : {}}>
+      <td style={{ fontWeight: 500, paddingLeft: nested ? 32 : undefined }}>{v.filename}</td>
+      <td><ContextBadge name={v.context_name} color={v.context_color} /></td>
+      <td><span style={{ fontSize: 11, color: '#666' }}>{v.source || '-'}</span></td>
+      <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
+      <td>
+        {v.overall_risk != null ? (
+          <span className={`score-gauge ${scoreClass(v.overall_risk)}`}>
+            {typeof v.overall_risk === 'number' ? v.overall_risk.toFixed(1) : v.overall_risk}
+          </span>
+        ) : '-'}
+      </td>
+      <td>{v.total_detections || 0}</td>
+      <td style={{ fontSize: 11 }}>
+        {(() => { try { return Object.entries(JSON.parse(v.scores_json)).map(([k,val]) => `${k}:${val}`).join(' | '); } catch { return '-'; } })()}
+      </td>
+      <td style={{ fontSize: 12, color: '#999' }}>{fmtDate(v.upload_timestamp)}</td>
+      <td>
+        <button className="btn btn-sm btn-primary" onClick={e => { e.stopPropagation(); navigate('review', { videoId: v.video_id }); }}>
+          {t('reports.reanalyze')}
+        </button>
+      </td>
+    </tr>
   );
 }
 

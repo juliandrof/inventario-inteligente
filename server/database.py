@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 import ssl
+import time
 import urllib.request
 import urllib.error
 from typing import Optional, Any
@@ -273,6 +274,15 @@ def _auto_create_tables(conn):
             """)
             logger.info("Default configurations seeded")
 
+        # Seed timezone if not present
+        cur.execute("SELECT 1 FROM configurations WHERE config_key = 'timezone'")
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO configurations (config_id, config_key, config_value, description, updated_at)
+                VALUES (%(id)s, 'timezone', 'America/Sao_Paulo', 'Timezone for dates and file names', NOW())
+            """, {"id": int(time.time() * 1000)})
+            logger.info("Default timezone seeded")
+
         cur.execute("SELECT COUNT(*) FROM branding")
         if cur.fetchone()[0] == 0:
             cur.execute("""
@@ -321,3 +331,14 @@ def execute_update(sql: str, params: Optional[dict] = None) -> int:
         return cur.rowcount if cur.rowcount else 0
     finally:
         cur.close()
+
+
+def get_timezone() -> str:
+    """Read timezone config from DB with fallback to America/Sao_Paulo."""
+    try:
+        rows = execute_query("SELECT config_value FROM configurations WHERE config_key = 'timezone'")
+        if rows:
+            return rows[0]["config_value"]
+    except Exception:
+        pass
+    return "America/Sao_Paulo"

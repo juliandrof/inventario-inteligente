@@ -1,6 +1,7 @@
 """Streaming video processor - captures frames from live streams in configurable windows."""
 
 import os
+import re
 import time
 import base64
 import threading
@@ -8,10 +9,11 @@ import tempfile
 import logging
 import json
 from collections import deque
+from datetime import datetime
 
 import cv2
 
-from server.database import execute_query, execute_update, get_workspace_client
+from server.database import execute_query, execute_update, get_workspace_client, get_timezone
 from server.fmapi import analyze_frame
 from server.video_processor import save_thumbnail
 
@@ -172,6 +174,26 @@ class StreamManager:
             "window_seconds": s.get("config", {}).get("window_seconds", 60),
         }
 
+    @staticmethod
+    def _sanitize_name(name: str) -> str:
+        """Sanitize stream name for use in filenames."""
+        s = re.sub(r'[^\w\s-]', '', name)
+        return re.sub(r'[\s]+', '_', s).strip('_')
+
+    @staticmethod
+    def _window_label(stream_name: str, window_start_ts: float) -> str:
+        """Generate window label: {sanitized_name}_{yyyyMMddHHmmss} using configured timezone."""
+        try:
+            from zoneinfo import ZoneInfo
+            tz_name = get_timezone()
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo("America/Sao_Paulo")
+        dt = datetime.fromtimestamp(window_start_ts, tz=tz)
+        safe_name = StreamManager._sanitize_name(stream_name)
+        return f"{safe_name}_{dt.strftime('%Y%m%d%H%M%S')}"
+
     def _run_stream(self, stream_id: int, stream_url: str, config: dict, context_id: int, context_name: str):
         stream = self._streams.get(stream_id)
         if not stream:
@@ -229,32 +251,33 @@ class StreamManager:
             return
 
         video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        frame_interval = max(1, int(video_fps / scan_fps))
         stream["status"] = "RUNNING"
-        self._log(stream_id, "OK", f"Connected! FPS={video_fps:.1f}, frame_interval={frame_interval}, threshold={threshold}")
+        self._log(stream_id, "OK", f"Connected! FPS={video_fps:.1f}, scan_fps={scan_fps}, threshold={threshold}")
 
-        window_frames = []
+        video_frames = []  # all frames at ~5fps for video encoding
         frame_idx = 0
         window_num = 0
         window_start_time = time.time()
-        last_capture_time = 0.0
-        capture_interval = 1.0 / scan_fps
+        last_video_capture = 0.0
+        last_preview_time = 0.0
+        video_capture_interval = 0.2  # ~5fps for video file
+        preview_interval = 0.5  # update live preview at 2fps
         stream_start_time = time.time()
         is_live = not local_path  # live streams (RTSP/RTMP/HTTP) vs local files
         consecutive_failures = 0
         max_failures = 150  # ~30s of failed reads at 5fps before giving up
 
         if is_live:
-            self._log(stream_id, "INFO", f"Live stream mode: will retry on dropped frames, capture every {capture_interval:.1f}s")
+            self._log(stream_id, "INFO", f"Live stream mode: video@5fps, analysis@{scan_fps}fps, window={window_seconds}s")
         else:
-            self._log(stream_id, "INFO", f"File mode: will stop at end of file, capture every {capture_interval:.1f}s")
+            self._log(stream_id, "INFO", f"File mode: video@5fps, analysis@{scan_fps}fps, window={window_seconds}s")
 
         try:
             while not stream.get("stop_requested"):
                 ret, frame = cap.read()
                 if not ret:
                     if is_live:
-                        # Live streams can drop frames — retry instead of stopping
+                        # Live streams can drop frames -- retry instead of stopping
                         consecutive_failures += 1
                         if consecutive_failures >= max_failures:
                             self._log(stream_id, "ERROR", f"Lost connection after {consecutive_failures} consecutive failed reads. Attempting reconnect...")
@@ -275,11 +298,14 @@ class StreamManager:
                             time.sleep(0.2)
                         continue
                     else:
-                        # File mode: end of file
-                        if window_frames:
-                            self._log(stream_id, "INFO", f"End of file. Processing final window ({len(window_frames)} frames)...")
-                            self._process_window(stream_id, stream, window_frames, window_num,
-                                                 categories, scan_prompt, threshold, config, context_id, context_name)
+                        # File mode: end of file -- process final window
+                        if video_frames:
+                            window_num += 1
+                            window_label = self._window_label(stream["name"], window_start_time)
+                            self._log(stream_id, "INFO", f"End of file. Processing final window ({len(video_frames)} frames)...")
+                            analysis_frames = self._select_analysis_frames(video_frames, scan_fps)
+                            self._process_window(stream_id, stream, video_frames, analysis_frames, window_num,
+                                                 window_label, categories, scan_prompt, threshold, config, context_id, context_name)
                         self._log(stream_id, "INFO", "File finished.")
                         break
 
@@ -289,8 +315,9 @@ class StreamManager:
                 elapsed_total = now - stream_start_time
                 frame_idx += 1
 
-                # Update live preview (~2 fps max to save CPU)
-                if frame_idx % max(1, int(video_fps / 2)) == 0:
+                # Update live preview (~2fps)
+                if now - last_preview_time >= preview_interval:
+                    last_preview_time = now
                     h_p, w_p = frame.shape[:2]
                     preview = frame
                     if w_p > 640:
@@ -299,24 +326,27 @@ class StreamManager:
                     _, jpg = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 60])
                     stream["last_frame"] = jpg.tobytes()
 
-                # Capture frame at scan_fps rate (wall clock based)
-                if now - last_capture_time >= capture_interval:
-                    last_capture_time = now
+                # Capture frame at ~5fps for video file
+                if now - last_video_capture >= video_capture_interval:
+                    last_video_capture = now
                     h, w = frame.shape[:2]
+                    small = frame
                     if w > 512:
                         scale = 512 / w
-                        frame = cv2.resize(frame, (512, int(h * scale)))
-                    _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                    window_frames.append((frame_idx, elapsed_total, jpeg.tobytes()))
+                        small = cv2.resize(frame, (512, int(h * scale)))
+                    _, jpeg = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    video_frames.append((frame_idx, elapsed_total, jpeg.tobytes()))
                     stream["current_window_sec"] = int(elapsed_in_window)
 
-                # Window complete? Process and start next
-                if elapsed_in_window >= window_seconds and window_frames:
+                # Window complete? Analyze, then persist only if detections
+                if elapsed_in_window >= window_seconds and video_frames:
                     window_num += 1
-                    self._log(stream_id, "INFO", f"Window {window_num} complete ({len(window_frames)} frames, {int(elapsed_in_window)}s). Analyzing...")
-                    self._process_window(stream_id, stream, window_frames, window_num,
-                                         categories, scan_prompt, threshold, config, context_id, context_name)
-                    window_frames = []
+                    window_label = self._window_label(stream["name"], window_start_time)
+                    self._log(stream_id, "INFO", f"Window {window_num} complete ({len(video_frames)} video frames, {int(elapsed_in_window)}s). Analyzing...")
+                    analysis_frames = self._select_analysis_frames(video_frames, scan_fps)
+                    self._process_window(stream_id, stream, video_frames, analysis_frames, window_num,
+                                         window_label, categories, scan_prompt, threshold, config, context_id, context_name)
+                    video_frames = []
                     window_start_time = time.time()
 
         except Exception as e:
@@ -329,6 +359,21 @@ class StreamManager:
             if stream.get("status") == "RUNNING":
                 stream["status"] = "STOPPED" if stream.get("stop_requested") else "COMPLETED"
             self._log(stream_id, "INFO", f"Finished. Status={stream['status']}, Windows={stream['windows_processed']}, Detections={stream['total_detections']}")
+
+    @staticmethod
+    def _select_analysis_frames(video_frames, scan_fps):
+        """Select frames for AI analysis from video_frames based on scan_fps interval."""
+        if not video_frames:
+            return []
+        analysis_interval = 1.0 / scan_fps if scan_fps > 0 else 5.0
+        selected = []
+        last_selected_ts = -analysis_interval  # ensure first frame is picked
+        for entry in video_frames:
+            _, ts, _ = entry
+            if ts - last_selected_ts >= analysis_interval:
+                selected.append(entry)
+                last_selected_ts = ts
+        return selected
 
     def _save_window_video(self, stream_id, frames, window_label):
         """Encode captured frames into a browser-compatible H.264 MP4 and upload to Volume."""
@@ -384,33 +429,15 @@ class StreamManager:
                 if os.path.exists(p):
                     os.unlink(p)
 
-    def _process_window(self, stream_id, stream, frames, window_num, categories, scan_prompt, threshold, config, context_id, context_name):
-        if not frames:
+    def _process_window(self, stream_id, stream, video_frames, analysis_frames, window_num, window_label, categories, scan_prompt, threshold, config, context_id, context_name):
+        if not video_frames:
             return
 
         video_id = int(time.time() * 1000) + window_num
-        start_ts = frames[0][1]
-        end_ts = frames[-1][1]
-        window_label = f"stream_{stream_id}_w{window_num}_{int(start_ts)}s-{int(end_ts)}s"
 
-        # Save frames as MP4 to Volume for playback
-        volume_path = self._save_window_video(stream_id, frames, window_label)
-        if not volume_path:
-            volume_path = f"stream://{self._safe_url(stream['stream_url'])}#w{window_num}"
-
-        execute_update("""
-            INSERT INTO videos (video_id, filename, volume_path, duration_seconds,
-                upload_timestamp, status, source, context_id, context_name, context_color)
-            VALUES (%(vid)s, %(name)s, %(path)s, %(dur)s, NOW(), 'ANALYZING', 'STREAM', %(cid)s, %(cname)s, %(ccolor)s)
-        """, {
-            "vid": video_id, "name": window_label,
-            "path": volume_path,
-            "dur": end_ts - start_ts,
-            "cid": context_id or None, "cname": context_name, "ccolor": config.get("context_color"),
-        })
-
+        # Analyze only the selected analysis frames
         detections = []
-        for i, (frame_idx, ts, jpeg_bytes) in enumerate(frames):
+        for i, (frame_idx, ts, jpeg_bytes) in enumerate(analysis_frames):
             frame_b64 = base64.b64encode(jpeg_bytes).decode()
             try:
                 result = analyze_frame(frame_b64, scan_prompt, categories)
@@ -433,6 +460,31 @@ class StreamManager:
                     "scores_detail": {c: result.get(c, 0) for c in categories},
                 })
                 self._log(stream_id, "DETECTION", f"[{max_cat}] score={max_score} at {ts:.1f}s")
+
+        # If no detections above threshold, discard this window entirely
+        if not detections:
+            self._log(stream_id, "INFO", f"No detections in window {window_num}, discarding")
+            stream["windows_processed"] += 1
+            return
+
+        # Detections found -- persist video + DB entries
+        start_ts = video_frames[0][1]
+        end_ts = video_frames[-1][1]
+
+        volume_path = self._save_window_video(stream_id, video_frames, window_label)
+        if not volume_path:
+            volume_path = f"stream://{self._safe_url(stream['stream_url'])}#w{window_num}"
+
+        execute_update("""
+            INSERT INTO videos (video_id, filename, volume_path, duration_seconds,
+                upload_timestamp, status, source, context_id, context_name, context_color)
+            VALUES (%(vid)s, %(name)s, %(path)s, %(dur)s, NOW(), 'ANALYZING', 'STREAM', %(cid)s, %(cname)s, %(ccolor)s)
+        """, {
+            "vid": video_id, "name": window_label,
+            "path": volume_path,
+            "dur": end_ts - start_ts,
+            "cid": context_id or None, "cname": context_name, "ccolor": config.get("context_color"),
+        })
 
         scores = {}
         for cat in categories:

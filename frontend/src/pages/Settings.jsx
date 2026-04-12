@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
-import { fetchContexts, createContext, updateContext, deleteContext, fetchBranding, updateBranding, uploadLogo } from '../api';
+import { fetchContexts, createContext, updateContext, deleteContext, fetchBranding, updateBranding, uploadLogo, fetchConfigs, updateConfig, fetchStorageSummary, cleanupStorage, clearAllData } from '../api';
 import { Tooltip } from '../i18n';
 
-const TABS = ['contexts', 'model', 'branding'];
+const TABS = ['contexts', 'model', 'general', 'branding'];
 
 function Settings() {
   const { t } = useI18n();
@@ -29,6 +29,7 @@ function Settings() {
 
       {tab === 'contexts' && <ContextsTab />}
       {tab === 'model' && <ModelTab />}
+      {tab === 'general' && <GeneralTab />}
       {tab === 'branding' && <BrandingTab />}
     </div>
   );
@@ -184,6 +185,125 @@ function ContextsTab() {
           })}
         </div>
       )}
+      {toast && <div className="toast toast-success">{toast}</div>}
+    </div>
+  );
+}
+
+// ============================================================
+// GENERAL TAB
+// ============================================================
+const TIMEZONES = [
+  'America/Sao_Paulo', 'America/New_York', 'America/Chicago', 'America/Los_Angeles',
+  'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai', 'UTC',
+];
+
+function GeneralTab() {
+  const { t } = useI18n();
+  const [timezone, setTimezone] = useState('America/Sao_Paulo');
+  const [savedTz, setSavedTz] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState('');
+  const [summary, setSummary] = useState(null);
+  const [cleanDays, setCleanDays] = useState(30);
+  const [cleanSource, setCleanSource] = useState('ALL');
+
+  const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000); };
+
+  useEffect(() => {
+    Promise.all([
+      fetchConfigs().then(configs => {
+        const tz = configs.find(c => c.config_key === 'timezone');
+        if (tz) { setTimezone(tz.config_value); setSavedTz(tz.config_value); }
+      }).catch(() => {}),
+      fetchStorageSummary().then(setSummary).catch(() => {}),
+    ]).finally(() => setLoading(false));
+  }, []);
+
+  const handleSaveTz = async () => {
+    await updateConfig('timezone', timezone, 'Timezone for dates and file names');
+    setSavedTz(timezone);
+    showToast(t('settings.timezone_saved'));
+  };
+
+  const handleCleanup = async () => {
+    try {
+      await cleanupStorage(cleanDays, cleanSource);
+      showToast(t('storage.cleaned'));
+      fetchStorageSummary().then(setSummary).catch(() => {});
+    } catch { showToast('Error'); }
+  };
+
+  const handleClearAll = async () => {
+    if (!confirm(t('storage.clear_all_confirm'))) return;
+    try {
+      await clearAllData();
+      showToast(t('storage.cleared'));
+      fetchStorageSummary().then(setSummary).catch(() => {});
+    } catch { showToast('Error'); }
+  };
+
+  if (loading) return <div className="loading"><div className="spinner"></div>{t('common.loading')}</div>;
+
+  return (
+    <div>
+      <div className="card">
+        <div className="card-title">{t('settings.timezone')}</div>
+        <p style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>{t('settings.timezone_desc')}</p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <select value={timezone} onChange={e => setTimezone(e.target.value)}
+            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 8, fontSize: 14, minWidth: 240 }}>
+            {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={handleSaveTz} disabled={timezone === savedTz}>
+            {t('settings.model_save')}
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">{t('storage.title')}</div>
+
+        {summary && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 24, marginBottom: 12 }}>
+              <div><strong>{t('storage.total_videos')}:</strong> {summary.total_videos}</div>
+            </div>
+            {summary.by_source && Object.keys(summary.by_source).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <strong>{t('storage.by_source')}:</strong>{' '}
+                {Object.entries(summary.by_source).map(([src, cnt]) => `${src}: ${cnt}`).join(' | ')}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ borderTop: '1px solid #eee', paddingTop: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 500, marginBottom: 10 }}>{t('storage.cleanup')}</div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span>{t('storage.older_than')}</span>
+            <input type="number" value={cleanDays} onChange={e => setCleanDays(parseInt(e.target.value) || 1)} min={1}
+              style={{ width: 70, padding: '6px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }} />
+            <span>{t('storage.days')}</span>
+            <select value={cleanSource} onChange={e => setCleanSource(e.target.value)}
+              style={{ padding: '6px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
+              <option value="ALL">ALL</option>
+              <option value="STREAM">STREAM</option>
+              <option value="UPLOAD">UPLOAD</option>
+              <option value="BATCH">BATCH</option>
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={handleCleanup}>{t('storage.delete_old')}</button>
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid #eee', paddingTop: 16 }}>
+          <button className="btn btn-sm" onClick={handleClearAll}
+            style={{ background: '#dc3545', color: 'white', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer' }}>
+            {t('storage.clear_all')}
+          </button>
+        </div>
+      </div>
+
       {toast && <div className="toast toast-success">{toast}</div>}
     </div>
   );
