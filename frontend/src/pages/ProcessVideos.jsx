@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { uploadVideo, startBatch, startStream, stopStream, fetchBatches, fetchContexts, fetchCatalogs, fetchSchemas, fetchVolumes } from '../api';
-import { useI18n } from '../i18n';
+import { useI18n, ContextBadge } from '../i18n';
 
 function ProcessVideos({ navigate }) {
   const { t } = useI18n();
@@ -10,6 +10,7 @@ function ProcessVideos({ navigate }) {
   const [contexts, setContexts] = useState([]);
   const [contextId, setContextId] = useState(0);
   const [contextName, setContextName] = useState('');
+  const [contextColor, setContextColor] = useState('');
 
   // Stream state
   const [streamUrl, setStreamUrl] = useState('');
@@ -47,11 +48,12 @@ function ProcessVideos({ navigate }) {
     setContextId(id);
     const ctx = contexts.find(c => c.context_id === id);
     setContextName(ctx ? ctx.name : '');
+    setContextColor(ctx ? ctx.color || '#2563EB' : '');
     setStep('method');
   };
 
   const resetWizard = () => {
-    setStep('context'); setContextId(0); setContextName(''); setResult(null); setBatch(null);
+    setStep('context'); setContextId(0); setContextName(''); setContextColor(''); setResult(null); setBatch(null);
     setVolumePath(''); setStreamUrl(''); setStreamData(null); setError(''); setProgress(0); setPreviewVideoId(null);
   };
 
@@ -152,7 +154,7 @@ function ProcessVideos({ navigate }) {
         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <span style={{ fontSize: 12, color: '#999', marginRight: 8 }}>{t('process.context')}:</span>
-            <span className="badge badge-analyzing" style={{ fontSize: 13 }}>{contextName}</span>
+            <ContextBadge name={contextName} color={contextColor} style={{ fontSize: 13 }} />
           </div>
           <button className="btn btn-sm btn-secondary" onClick={resetWizard}>{t('process.change_context')}</button>
         </div>
@@ -186,7 +188,7 @@ function ProcessVideos({ navigate }) {
     <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
       <div>
         <span style={{ fontSize: 12, color: '#999', marginRight: 8 }}>{t('process.context')}:</span>
-        <span className="badge badge-analyzing" style={{ fontSize: 13 }}>{contextName}</span>
+        <ContextBadge name={contextName} color={contextColor} style={{ fontSize: 13 }} />
       </div>
       <button className="btn btn-sm btn-secondary" onClick={() => setStep('method')}>{t('review.back')}</button>
     </div>
@@ -315,7 +317,7 @@ function ProcessVideos({ navigate }) {
         <div className="card">
           <div className="card-title">
             Batch #{batch.batch_id}
-            <span className="badge badge-analyzing" style={{ marginLeft: 8, fontSize: 11 }}>{contextName}</span>
+            <ContextBadge name={contextName} color={contextColor} style={{ marginLeft: 8, fontSize: 11 }} />
           </div>
           <div className="batch-progress">
             <div className="progress-pct">{Math.round(batch.pct || 0)}%</div>
@@ -441,7 +443,7 @@ function ProcessVideos({ navigate }) {
           <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isLive && <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#e74c3c', display: 'inline-block', animation: 'pulse 1.5s infinite' }}></span>}
             {t('process.stream_title')}
-            <span className="badge badge-analyzing" style={{ fontSize: 11, marginLeft: 8 }}>{contextName}</span>
+            <ContextBadge name={contextName} color={contextColor} style={{ fontSize: 11, marginLeft: 8 }} />
             <span className={`badge ${isLive ? 'badge-scanning' : streamData.status === 'COMPLETED' ? 'badge-completed' : 'badge-failed'}`} style={{ marginLeft: 4 }}>
               {streamData.status}
             </span>
