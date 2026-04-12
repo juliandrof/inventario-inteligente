@@ -228,6 +228,10 @@ class StreamManager:
         window_frames = []
         frame_idx = 0
         window_num = 0
+        window_start_time = time.time()
+        last_capture_time = 0.0
+        capture_interval = 1.0 / scan_fps  # e.g. 5 seconds for 0.2 fps
+        stream_start_time = time.time()
 
         try:
             while not stream.get("stop_requested"):
@@ -240,25 +244,30 @@ class StreamManager:
                     self._log(stream_id, "INFO", "Stream ended (no more frames).")
                     break
 
-                if frame_idx % frame_interval == 0:
-                    timestamp = frame_idx / video_fps
+                now = time.time()
+                elapsed_in_window = now - window_start_time
+                elapsed_total = now - stream_start_time
+                frame_idx += 1
+
+                # Capture frame at scan_fps rate (wall clock based)
+                if now - last_capture_time >= capture_interval:
+                    last_capture_time = now
                     h, w = frame.shape[:2]
                     if w > 512:
                         scale = 512 / w
                         frame = cv2.resize(frame, (512, int(h * scale)))
                     _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                    window_frames.append((frame_idx, timestamp, jpeg.tobytes()))
-                    stream["current_window_sec"] = int(timestamp % window_seconds)
+                    window_frames.append((frame_idx, elapsed_total, jpeg.tobytes()))
+                    stream["current_window_sec"] = int(elapsed_in_window)
 
-                video_time = frame_idx / video_fps
-                if video_time > 0 and int(video_time) % window_seconds == 0 and int(video_time) // window_seconds > window_num:
-                    window_num = int(video_time) // window_seconds
-                    self._log(stream_id, "INFO", f"Window {window_num} complete ({len(window_frames)} frames). Analyzing...")
+                # Window complete? Process and start next
+                if elapsed_in_window >= window_seconds and window_frames:
+                    window_num += 1
+                    self._log(stream_id, "INFO", f"Window {window_num} complete ({len(window_frames)} frames, {int(elapsed_in_window)}s). Analyzing...")
                     self._process_window(stream_id, stream, window_frames, window_num,
                                          categories, scan_prompt, threshold, config, context_id, context_name)
                     window_frames = []
-
-                frame_idx += 1
+                    window_start_time = time.time()
 
         except Exception as e:
             stream["error"] = str(e)[:200]
