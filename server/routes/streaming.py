@@ -16,6 +16,8 @@ class StreamStartRequest(BaseModel):
     stream_url: str
     context_id: int
     window_seconds: int = 60
+    username: str = ""
+    password: str = ""
 
 
 @router.post("/start")
@@ -43,8 +45,17 @@ async def start_stream(req: StreamStartRequest):
     }
 
     config["window_seconds"] = req.window_seconds
+
+    # Inject credentials into RTSP URL if provided
+    url = req.stream_url.strip()
+    if req.username and url.lower().startswith("rtsp://"):
+        cred = req.username
+        if req.password:
+            cred += f":{req.password}"
+        url = url.replace("rtsp://", f"rtsp://{cred}@", 1)
+
     manager = StreamManager()
-    info = manager.start_stream(req.stream_url, config, req.context_id, ctx["name"])
+    info = manager.start_stream(url, config, req.context_id, ctx["name"])
     return info
 
 

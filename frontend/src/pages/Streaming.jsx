@@ -17,6 +17,8 @@ function Streaming({ navigate }) {
   const [contextColor, setContextColor] = useState('');
   const [streamUrl, setStreamUrl] = useState('');
   const [streamWindow, setStreamWindow] = useState(60);
+  const [streamUser, setStreamUser] = useState('');
+  const [streamPass, setStreamPass] = useState('');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const [activeStream, setActiveStream] = useState(null);
@@ -65,7 +67,7 @@ function Streaming({ navigate }) {
     if (!streamUrl.trim() || !contextId) return;
     setError(''); setStarting(true);
     try {
-      const res = await startStream(streamUrl.trim(), contextId, streamWindow);
+      const res = await startStream(streamUrl.trim(), contextId, streamWindow, streamUser, streamPass);
       setActiveStream(res); setTab('streams');
       load();
     } catch (e) { setError(e.message || t('common.error')); } finally { setStarting(false); }
@@ -127,6 +129,20 @@ function Streaming({ navigate }) {
                   <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)}
                     placeholder="rtsp://camera-ip:554/stream1" style={{ fontFamily: 'monospace' }} />
                 </div>
+                {streamUrl.toLowerCase().startsWith('rtsp://') && (
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <div className="form-group" style={{ flex: 1, minWidth: 160 }}>
+                      <label>{t('streaming.username')}</label>
+                      <input type="text" value={streamUser} onChange={e => setStreamUser(e.target.value)}
+                        placeholder="admin" autoComplete="username" />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: 160 }}>
+                      <label>{t('streaming.password')}</label>
+                      <input type="password" value={streamPass} onChange={e => setStreamPass(e.target.value)}
+                        placeholder="********" autoComplete="current-password" />
+                    </div>
+                  </div>
+                )}
                 <div className="form-group" style={{ maxWidth: 250 }}>
                   <label>{t('process.stream_window_label')}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

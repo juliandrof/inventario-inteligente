@@ -95,11 +95,27 @@ class StreamManager:
                 stream["error"] = f"Could not download from volume: {e}"
                 return
 
-        # Open the stream/video
-        cap = cv2.VideoCapture(stream_url)
+        # Open the stream/video with RTSP-friendly settings
+        is_rtsp = stream_url.lower().startswith("rtsp://")
+        if is_rtsp:
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|analyzeduration;10000000|stimeout;10000000"
+            cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+        else:
+            cap = cv2.VideoCapture(stream_url)
+
+        # Wait for connection with timeout
+        if not cap.isOpened():
+            logger.warning(f"[Stream {stream_id}] First open attempt failed, retrying with TCP transport...")
+            cap.release()
+            if is_rtsp:
+                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+                cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+
         if not cap.isOpened():
             stream["status"] = "FAILED"
-            stream["error"] = f"Could not open stream: {stream_url}"
+            safe_url = stream_url.split("@")[-1] if "@" in stream_url else stream_url
+            stream["error"] = f"Could not open stream: {safe_url}. Check URL, credentials, and network access."
+            logger.error(f"[Stream {stream_id}] Failed to open: {safe_url}")
             if local_path:
                 os.unlink(local_path)
             return
