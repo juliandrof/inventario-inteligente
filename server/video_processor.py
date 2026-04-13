@@ -212,7 +212,7 @@ def _save_results(video_id: int, detections: list[dict], categories: list[str], 
         cat_scores = [d["scores_detail"].get(cat, 0) for d in detections if d["scores_detail"].get(cat, 0) > 0]
         scores[cat] = max(cat_scores) if cat_scores else 0
 
-    overall = sum(scores.values()) / len(scores) if scores else 0
+    overall = max(scores.values()) if scores else 0
 
     scores_json = json.dumps(scores)
     config_json = json.dumps(config, default=str)
