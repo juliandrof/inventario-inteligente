@@ -237,26 +237,23 @@ function Reports({ navigate }) {
   );
 }
 
-function getStreamPrefix(filename) {
-  // Match everything before the date suffix _yyyyMMddHHmmss
-  const m = filename.match(/^(.+)_\d{14}$/);
-  return m ? m[1] : null;
+function getStreamDayGroup(filename) {
+  // Extract {stream_name}_{yyyyMMdd} from {stream_name}_{yyyyMMddHHmmss}
+  const m = filename.match(/^(.+)_(\d{8})\d{6}$/);
+  return m ? `${m[1]}_${m[2]}` : null;
 }
 
 function GroupedVideoRows({ items, onSelect, navigate, tz }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = React.useState({});
 
-  // Separate stream vs non-stream, group stream by prefix
+  // Separate stream vs non-stream, group stream by day
   const groups = {};
-  const nonStream = [];
   items.forEach(v => {
     if (v.source === 'STREAM') {
-      const prefix = getStreamPrefix(v.filename) || v.filename;
-      if (!groups[prefix]) groups[prefix] = [];
-      groups[prefix].push(v);
-    } else {
-      nonStream.push(v);
+      const key = getStreamDayGroup(v.filename) || v.filename;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(v);
     }
   });
 
@@ -265,10 +262,10 @@ function GroupedVideoRows({ items, onSelect, navigate, tz }) {
   const rows = [];
   items.forEach(v => {
     if (v.source === 'STREAM') {
-      const prefix = getStreamPrefix(v.filename) || v.filename;
-      if (!emittedGroups.has(prefix)) {
-        emittedGroups.add(prefix);
-        rows.push({ type: 'group', prefix, videos: groups[prefix] });
+      const key = getStreamDayGroup(v.filename) || v.filename;
+      if (!emittedGroups.has(key)) {
+        emittedGroups.add(key);
+        rows.push({ type: 'group', prefix: key, videos: groups[key] });
       }
     } else {
       rows.push({ type: 'single', video: v });
