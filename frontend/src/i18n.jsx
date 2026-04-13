@@ -213,6 +213,8 @@ const translations = {
     'tip.fps_scan': 'Quantidade de frames extraidos por segundo durante a varredura inicial. Valor menor = analise mais rapida e mais barata, porem com menor precisao. Exemplo: 0.2 = 1 frame a cada 5 segundos.',
     'tip.fps_detail': 'Quantidade de frames por segundo na fase de analise detalhada. Usado apenas nos trechos que ultrapassam o threshold. Valor maior = mais precisao, porem mais caro.',
     'tip.threshold': 'Score minimo (0-10) para que um frame seja considerado uma deteccao. Frames com score abaixo desse valor serao ignorados. Valor menor = mais sensivel (mais deteccoes), valor maior = mais rigoroso.',
+    'ctx.dedup_window': 'Agrupamento (s)',
+    'tip.dedup_window': 'Deteccoes da mesma categoria dentro desta janela de tempo (em segundos) serao agrupadas em uma unica deteccao. O frame com maior score e mantido.',
     'tip.categories': 'Lista de categorias que o modelo ira avaliar. Cada categoria recebe um score de 0 a 10. Voce pode criar categorias personalizadas para qualquer tipo de analise.',
     'tip.prompt': 'Instrucao enviada ao modelo de IA para cada frame do video. Este texto define exatamente o que o modelo deve procurar e como pontuar. Quanto mais especifico, melhores os resultados.',
 
@@ -498,6 +500,8 @@ const translations = {
     'tip.fps_scan': 'Number of frames extracted per second during the initial scan. Lower value = faster and cheaper analysis but less precise. Example: 0.2 = 1 frame every 5 seconds.',
     'tip.fps_detail': 'Frames per second in the detailed analysis phase. Only used on segments that exceed the threshold. Higher value = more precision but more expensive.',
     'tip.threshold': 'Minimum score (0-10) for a frame to be considered a detection. Frames below this value are ignored. Lower = more sensitive (more detections), higher = more strict.',
+    'ctx.dedup_window': 'Grouping (s)',
+    'tip.dedup_window': 'Detections of the same category within this time window (in seconds) are grouped into a single detection. The frame with the highest score is kept.',
     'tip.categories': 'List of categories the model will evaluate. Each category receives a score from 0 to 10. You can create custom categories for any type of analysis.',
     'tip.prompt': 'Instruction sent to the AI model for each video frame. This text defines exactly what the model should look for and how to score. The more specific, the better the results.',
 
@@ -781,6 +785,8 @@ const translations = {
     'tip.fps_scan': 'Cantidad de frames extraidos por segundo durante el escaneo inicial. Valor menor = analisis mas rapido y barato, pero menos preciso. Ejemplo: 0.2 = 1 frame cada 5 segundos.',
     'tip.fps_detail': 'Frames por segundo en la fase de analisis detallado. Solo se usa en segmentos que superan el umbral. Valor mayor = mas precision, pero mas caro.',
     'tip.threshold': 'Score minimo (0-10) para que un frame sea considerado una deteccion. Frames por debajo de este valor seran ignorados. Menor = mas sensible, mayor = mas estricto.',
+    'ctx.dedup_window': 'Agrupamiento (s)',
+    'tip.dedup_window': 'Detecciones de la misma categoria dentro de esta ventana de tiempo (en segundos) se agrupan en una sola deteccion. Se mantiene el frame con mayor score.',
     'tip.categories': 'Lista de categorias que el modelo evaluara. Cada categoria recibe un score de 0 a 10. Puede crear categorias personalizadas para cualquier tipo de analisis.',
     'tip.prompt': 'Instruccion enviada al modelo de IA para cada frame del video. Define exactamente lo que el modelo debe buscar y como puntuar. Cuanto mas especifico, mejores resultados.',
 

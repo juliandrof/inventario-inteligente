@@ -58,6 +58,7 @@ async def start_batch(req: BatchStartRequest):
                 "scan_fps": ctx.get("scan_fps", 0.2),
                 "detail_fps": ctx.get("detail_fps", 1.0),
                 "score_threshold": ctx.get("score_threshold", 4),
+                "dedup_window": ctx.get("dedup_window", 5),
             }
             ctx_name = ctx["name"]
             config["context_color"] = ctx.get("color")

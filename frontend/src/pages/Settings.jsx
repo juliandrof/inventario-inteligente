@@ -47,7 +47,7 @@ function ContextsTab() {
   const [toast, setToast] = useState('');
 
   function newForm() {
-    return { name: '', description: '', categories: ['fadiga', 'distracao'], scan_prompt: '', scan_fps: 0.2, detail_fps: 1.0, score_threshold: 4, color: '#2563EB', newCat: '' };
+    return { name: '', description: '', categories: ['fadiga', 'distracao'], scan_prompt: '', scan_fps: 0.2, detail_fps: 1.0, score_threshold: 4, dedup_window: 5, color: '#2563EB', newCat: '' };
   }
   const load = () => { fetchContexts().then(setContexts).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(load, []);
@@ -60,7 +60,7 @@ function ContextsTab() {
   };
   const handleSave = async () => {
     const data = { name: form.name, description: form.description, categories: form.categories, scan_prompt: form.scan_prompt,
-      scan_fps: parseFloat(form.scan_fps), detail_fps: parseFloat(form.detail_fps), score_threshold: parseInt(form.score_threshold), color: form.color || '#2563EB' };
+      scan_fps: parseFloat(form.scan_fps), detail_fps: parseFloat(form.detail_fps), score_threshold: parseInt(form.score_threshold), dedup_window: parseInt(form.dedup_window) || 5, color: form.color || '#2563EB' };
     if (editing === 'new') { await createContext(data); showToast(t('ctx.created')); }
     else { await updateContext(editing, data); showToast(t('ctx.updated')); }
     setEditing(null); load();
@@ -133,6 +133,8 @@ function ContextsTab() {
               <input type="number" step="0.1" min="0.1" max="10" value={form.detail_fps} onChange={e => setForm({ ...form, detail_fps: e.target.value })} /></div>
             <div className="form-group" style={{ width: 180 }}><label>{t('ctx.threshold')}<Tooltip text={t('tip.threshold')} /></label>
               <input type="number" min="0" max="10" value={form.score_threshold} onChange={e => setForm({ ...form, score_threshold: e.target.value })} /></div>
+            <div className="form-group" style={{ width: 180 }}><label>{t('ctx.dedup_window')}<Tooltip text={t('tip.dedup_window')} /></label>
+              <input type="number" min="1" max="60" value={form.dedup_window || 5} onChange={e => setForm({ ...form, dedup_window: e.target.value })} /></div>
           </div>
         </div>
         <button className="btn btn-primary" onClick={handleSave}

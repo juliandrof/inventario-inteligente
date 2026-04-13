@@ -255,6 +255,7 @@ def _auto_create_tables(conn):
             ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_name VARCHAR(200);
             ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_color VARCHAR(20);
             ALTER TABLE contexts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#2563EB';
+            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS dedup_window INTEGER DEFAULT 5;
             UPDATE videos SET context_color = c.color
                 FROM contexts c WHERE videos.context_name = c.name
                 AND (videos.context_color IS NULL OR videos.context_color = '');

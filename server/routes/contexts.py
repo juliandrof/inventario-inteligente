@@ -19,6 +19,7 @@ class ContextCreate(BaseModel):
     detail_fps: Optional[float] = 1.0
     score_threshold: Optional[int] = 4
     color: Optional[str] = "#2563EB"
+    dedup_window: Optional[int] = 5
 
 
 class ContextUpdate(BaseModel):
@@ -30,6 +31,7 @@ class ContextUpdate(BaseModel):
     detail_fps: Optional[float] = None
     score_threshold: Optional[int] = None
     color: Optional[str] = None
+    dedup_window: Optional[int] = None
 
 
 @router.get("")
@@ -49,13 +51,13 @@ async def get_context(context_id: int):
 async def create_context(req: ContextCreate):
     cid = int(time.time() * 1000)
     execute_update("""
-        INSERT INTO contexts (context_id, name, description, categories, scan_prompt, scan_fps, detail_fps, score_threshold, color, created_at, updated_at)
-        VALUES (%(id)s, %(name)s, %(desc)s, %(cats)s, %(prompt)s, %(sfps)s, %(dfps)s, %(thresh)s, %(color)s, NOW(), NOW())
+        INSERT INTO contexts (context_id, name, description, categories, scan_prompt, scan_fps, detail_fps, score_threshold, color, dedup_window, created_at, updated_at)
+        VALUES (%(id)s, %(name)s, %(desc)s, %(cats)s, %(prompt)s, %(sfps)s, %(dfps)s, %(thresh)s, %(color)s, %(dedup)s, NOW(), NOW())
     """, {
         "id": cid, "name": req.name, "desc": req.description,
         "cats": json.dumps(req.categories), "prompt": req.scan_prompt,
         "sfps": req.scan_fps, "dfps": req.detail_fps, "thresh": req.score_threshold,
-        "color": req.color or "#2563EB",
+        "color": req.color or "#2563EB", "dedup": req.dedup_window or 5,
     })
     return {"context_id": cid, "name": req.name}
 
@@ -84,6 +86,8 @@ async def update_context(context_id: int, req: ContextUpdate):
         updates.append("score_threshold = %(thresh)s"); params["thresh"] = req.score_threshold
     if req.color is not None:
         updates.append("color = %(color)s"); params["color"] = req.color
+    if req.dedup_window is not None:
+        updates.append("dedup_window = %(dedup)s"); params["dedup"] = req.dedup_window
 
     if updates:
         updates.append("updated_at = NOW()")

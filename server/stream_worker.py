@@ -361,15 +361,15 @@ class StreamManager:
             self._log(stream_id, "INFO", f"Finished. Status={stream['status']}, Windows={stream['windows_processed']}, Detections={stream['total_detections']}")
 
     @staticmethod
-    def _deduplicate_detections(detections):
-        """Merge consecutive detections of same category within 5s window."""
+    def _deduplicate_detections(detections, dedup_window=5):
+        """Merge consecutive detections of same category within dedup_window seconds."""
         if not detections:
             return []
         sorted_dets = sorted(detections, key=lambda d: d["timestamp_sec"])
         merged = []
         current = sorted_dets[0]
         for det in sorted_dets[1:]:
-            if det["category"] == current["category"] and det["timestamp_sec"] - current["timestamp_sec"] <= 5.0:
+            if det["category"] == current["category"] and det["timestamp_sec"] - current["timestamp_sec"] <= dedup_window:
                 if det["score"] > current["score"]:
                     current = det
             else:
@@ -479,7 +479,8 @@ class StreamManager:
                 })
                 self._log(stream_id, "DETECTION", f"[{max_cat}] score={max_score} at {ts:.1f}s")
 
-        detections = self._deduplicate_detections(detections)
+        dedup_window = config.get("dedup_window", 5)
+        detections = self._deduplicate_detections(detections, dedup_window)
 
         # If no detections above threshold, discard this window entirely
         if not detections:

@@ -65,15 +65,15 @@ def save_thumbnail(video_id: int, frame_bytes: bytes, timestamp_sec: float) -> s
     return filename
 
 
-def _deduplicate_detections(detections):
-    """Merge consecutive detections of same category within 5s window."""
+def _deduplicate_detections(detections, dedup_window=5):
+    """Merge consecutive detections of same category within dedup_window seconds."""
     if not detections:
         return []
     sorted_dets = sorted(detections, key=lambda d: d["timestamp_sec"])
     merged = []
     current = sorted_dets[0]
     for det in sorted_dets[1:]:
-        if det["category"] == current["category"] and det["timestamp_sec"] - current["timestamp_sec"] <= 5.0:
+        if det["category"] == current["category"] and det["timestamp_sec"] - current["timestamp_sec"] <= dedup_window:
             if det["score"] > current["score"]:
                 current = det
         else:
@@ -187,7 +187,7 @@ def process_video(video_id: int, local_path: str, config: dict, progress_callbac
     cap.release()
     logger.info(f"[V{video_id}] Analysis complete. {len(detections)} raw detections from {analyzed_count} frames.")
 
-    detections = _deduplicate_detections(detections)
+    detections = _deduplicate_detections(detections, config.get("dedup_window", 5))
     logger.info(f"[V{video_id}] After deduplication: {len(detections)} detections.")
 
     # Persist results

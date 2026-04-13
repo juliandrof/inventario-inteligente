@@ -340,6 +340,13 @@ function VideoRow({ v, onSelect, navigate, nested, tz }) {
 
 function scoreClass(s) { return s <= 3 ? 'score-low' : s <= 6 ? 'score-medium' : s <= 8 ? 'score-high' : 'score-critical'; }
 function fmtTime(sec) { if (!sec && sec !== 0) return '-'; return `${Math.floor(sec/60)}:${String(Math.round(sec%60)).padStart(2,'0')}`; }
-function fmtDate(ts, tz) { if (!ts) return '-'; try { return new Date(ts).toLocaleString('pt-BR', { timeZone: tz, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return ts; } }
+function fmtDate(ts, tz) {
+  if (!ts) return '-';
+  try {
+    let s = String(ts);
+    if (!s.endsWith('Z') && !s.includes('+')) s += 'Z';
+    return new Date(s).toLocaleString('pt-BR', { timeZone: tz, day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  } catch { return ts; }
+}
 
 export default Reports;

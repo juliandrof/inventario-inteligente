@@ -50,6 +50,7 @@ async def start_stream(req: StreamStartRequest):
         "detail_fps": ctx.get("detail_fps", 1.0),
         "score_threshold": ctx.get("score_threshold", 4),
         "context_color": ctx.get("color"),
+        "dedup_window": ctx.get("dedup_window", 5),
         "window_seconds": req.window_seconds,
     }
 

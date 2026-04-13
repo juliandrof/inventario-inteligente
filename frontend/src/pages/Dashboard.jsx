@@ -167,5 +167,12 @@ function Dashboard({ navigate }) {
 }
 
 function sc(s) { return s <= 3 ? 'score-low' : s <= 6 ? 'score-medium' : s <= 8 ? 'score-high' : 'score-critical'; }
-function fmtDate(ts, tz) { if (!ts) return '-'; try { return new Date(ts).toLocaleString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ts; } }
+function fmtDate(ts, tz) {
+  if (!ts) return '-';
+  try {
+    let s = String(ts);
+    if (!s.endsWith('Z') && !s.includes('+')) s += 'Z';
+    return new Date(s).toLocaleString('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch { return ts; }
+}
 export default Dashboard;
