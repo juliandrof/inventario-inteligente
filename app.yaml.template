@@ -1,0 +1,37 @@
+command:
+  - uvicorn
+  - app:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8000"
+env:
+  - name: DBXSC_AI_DB_HOST
+    value: "<LAKEBASE_ENDPOINT_HOST>"
+  - name: DBXSC_AI_DB_PORT
+    value: "5432"
+  - name: DBXSC_AI_DB_NAME
+    value: "<DATABASE_NAME>"
+  - name: DBXSC_AI_DB_SCHEMA
+    value: "public"
+  - name: DBXSC_AI_LAKEBASE_PROJECT
+    value: "<LAKEBASE_PROJECT_ID>"
+  - name: DBXSC_AI_LAKEBASE_BRANCH
+    value: "production"
+  - name: DBXSC_AI_LAKEBASE_ENDPOINT
+    value: "primary"
+  - name: DBXSC_AI_DB_USER
+    value: "<SERVICE_PRINCIPAL_UUID>"
+  - name: DBXSC_AI_DB_PASSWORD
+    value: "<DB_PASSWORD>"
+  - name: FMAPI_MODEL
+    value: "databricks-llama-4-maverick"
+  - name: VIDEO_VOLUME
+    value: "/Volumes/<CATALOG>/<SCHEMA>/uploaded_videos"
+  - name: THUMBNAIL_VOLUME
+    value: "/Volumes/<CATALOG>/<SCHEMA>/thumbnails"
+resources:
+  - name: serving-endpoint
+    serving_endpoint:
+      name: databricks-llama-4-maverick
+      permission: CAN_QUERY
