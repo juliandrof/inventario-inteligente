@@ -161,13 +161,34 @@ PGPASSWORD=$TOKEN psql "host=$HOST port=5432 dbname=postgres user=$EMAIL sslmode
   -c "CREATE DATABASE scenic_crawler;"
 ```
 
-### 3. Build Frontend
+### 3. Create app.yaml
+
+The `app.yaml` file contains credentials and is **not included in the repository** for security. Create it from the template:
+
+```bash
+cp app.yaml.template app.yaml
+```
+
+Then edit `app.yaml` and replace all `<PLACEHOLDER>` values with your actual Lakebase credentials:
+
+| Placeholder | Description | Where to find |
+|-------------|-------------|---------------|
+| `<LAKEBASE_ENDPOINT_HOST>` | Lakebase endpoint hostname | `databricks postgres list-endpoints ...` |
+| `<DATABASE_NAME>` | PostgreSQL database name | The database you created in step 2 |
+| `<LAKEBASE_PROJECT_ID>` | Lakebase project ID | The project name from step 1 |
+| `<SERVICE_PRINCIPAL_UUID>` | App service principal UUID | Created automatically when the app is deployed |
+| `<DB_PASSWORD>` | PostgreSQL password for the SP | Set when creating the PG role |
+| `<CATALOG>/<SCHEMA>` | Unity Catalog path for Volumes | Your catalog and schema names |
+
+> **Security note:** Never commit `app.yaml` with real credentials. The `.gitignore` prevents this automatically.
+
+### 4. Build Frontend
 
 ```bash
 cd frontend && npm install && npm run build
 ```
 
-### 4. Deploy
+### 5. Deploy
 
 ```bash
 databricks apps create dbxsc-ai
@@ -175,7 +196,7 @@ databricks sync . /Workspace/Users/<email>/dbxsc-ai -p PROFILE
 databricks apps deploy dbxsc-ai /Workspace/Users/<email>/dbxsc-ai SNAPSHOT
 ```
 
-Tables and seed data are auto-created on first startup. Configure the `app.yaml` environment variables for your Lakebase instance.
+Tables and seed data are auto-created on first startup.
 
 ## Deploying to Another Workspace (UI)
 

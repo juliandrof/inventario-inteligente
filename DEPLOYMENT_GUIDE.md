@@ -172,6 +172,8 @@ Ensure a vision-capable model endpoint exists. Common options:
 
 ## Step 4 — Create and Configure the App
 
+> **Note:** The `app.yaml` file is not in the repository (it contains credentials). A template is provided at `app.yaml.template`. If deploying via CLI instead of UI, copy it to `app.yaml` and fill in the placeholders before deploying.
+
 ```
 Workspace UI > Compute > Apps > Create App
 ```
