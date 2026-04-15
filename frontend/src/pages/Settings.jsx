@@ -45,13 +45,15 @@ function ContextsTab() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(newForm());
   const [toast, setToast] = useState('');
+  const [toastType, setToastType] = useState('success');
+  const [saving, setSaving] = useState(false);
 
   function newForm() {
     return { name: '', description: '', categories: ['fadiga', 'distracao'], scan_prompt: '', scan_fps: 0.2, detail_fps: 1.0, score_threshold: 4, dedup_window: 5, color: '#2563EB', newCat: '' };
   }
-  const load = () => { fetchContexts().then(setContexts).catch(() => {}).finally(() => setLoading(false)); };
+  const load = () => { fetchContexts().then(setContexts).catch(err => { console.error('Load contexts error:', err); showToast(err.message || 'Error loading contexts', 'error'); }).finally(() => setLoading(false)); };
   useEffect(load, []);
-  const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000); };
+  const showToast = (m, type = 'success') => { setToast(m); setToastType(type); setTimeout(() => setToast(''), type === 'error' ? 5000 : 3000); };
 
   const handleEdit = (ctx) => {
     let cats = ctx.categories;
@@ -60,14 +62,27 @@ function ContextsTab() {
   };
   const handleSave = async () => {
     const data = { name: form.name, description: form.description, categories: form.categories, scan_prompt: form.scan_prompt,
-      scan_fps: parseFloat(form.scan_fps), detail_fps: parseFloat(form.detail_fps), score_threshold: parseInt(form.score_threshold), dedup_window: parseInt(form.dedup_window) || 5, color: form.color || '#2563EB' };
-    if (editing === 'new') { await createContext(data); showToast(t('ctx.created')); }
-    else { await updateContext(editing, data); showToast(t('ctx.updated')); }
-    setEditing(null); load();
+      scan_fps: parseFloat(form.scan_fps) || 0.2, detail_fps: parseFloat(form.detail_fps) || 1.0, score_threshold: parseInt(form.score_threshold) || 4, dedup_window: parseInt(form.dedup_window) || 5, color: form.color || '#2563EB' };
+    setSaving(true);
+    try {
+      if (editing === 'new') { await createContext(data); showToast(t('ctx.created')); }
+      else { await updateContext(editing, data); showToast(t('ctx.updated')); }
+      setEditing(null); load();
+    } catch (err) {
+      console.error('Save context error:', err);
+      showToast(err.message || 'Error saving context', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
   const handleDelete = async (id, name) => {
     if (!confirm(`${t('ctx.confirm_delete')} "${name}"?`)) return;
-    await deleteContext(id); showToast(t('ctx.deleted')); load();
+    try {
+      await deleteContext(id); showToast(t('ctx.deleted')); load();
+    } catch (err) {
+      console.error('Delete context error:', err);
+      showToast(err.message || 'Error deleting context', 'error');
+    }
   };
   const addCat = () => {
     const c = form.newCat.trim().toLowerCase();
@@ -138,10 +153,10 @@ function ContextsTab() {
           </div>
         </div>
         <button className="btn btn-primary" onClick={handleSave}
-          disabled={!form.name.trim() || !form.scan_prompt.trim() || form.categories.length === 0}>
-          {editing === 'new' ? t('ctx.create') : t('ctx.save')}
+          disabled={saving || !form.name.trim() || !form.scan_prompt.trim() || form.categories.length === 0}>
+          {saving ? '...' : (editing === 'new' ? t('ctx.create') : t('ctx.save'))}
         </button>
-        {toast && <div className="toast toast-success">{toast}</div>}
+        {toast && <div className={`toast toast-${toastType}`}>{toast}</div>}
       </div>
     );
   }
@@ -187,7 +202,7 @@ function ContextsTab() {
           })}
         </div>
       )}
-      {toast && <div className="toast toast-success">{toast}</div>}
+      {toast && <div className={`toast toast-${toastType}`}>{toast}</div>}
     </div>
   );
 }
