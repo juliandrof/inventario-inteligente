@@ -106,7 +106,7 @@ function App() {
   );
 }
 
-function DBXSC AILogo() {
+function DBXSCLogo() {
   return (
     <svg width="160" height="40" viewBox="0 0 160 40" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="2" y="5" width="30" height="30" rx="6" fill="var(--dbxsc-primary, #2563EB)"/>
