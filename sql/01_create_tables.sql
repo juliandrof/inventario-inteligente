@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS videos (
     progress_pct    DOUBLE PRECISION DEFAULT 0,
     source          VARCHAR(20),
     uploaded_by     VARCHAR(200),
-    error_message   TEXT
+    error_message   TEXT,
+    context_id      BIGINT,
+    context_name    VARCHAR(200),
+    context_color   VARCHAR(20)
 );
 
 CREATE TABLE IF NOT EXISTS analysis_results (
@@ -84,9 +87,26 @@ CREATE TABLE IF NOT EXISTS review_log (
     action_timestamp TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS contexts (
+    context_id      BIGINT PRIMARY KEY,
+    name            VARCHAR(200) NOT NULL UNIQUE,
+    description     TEXT,
+    categories      TEXT NOT NULL DEFAULT '["fadiga", "distracao"]',
+    scan_prompt     TEXT NOT NULL,
+    scan_fps        DOUBLE PRECISION DEFAULT 0.2,
+    detail_fps      DOUBLE PRECISION DEFAULT 1.0,
+    score_threshold INTEGER DEFAULT 4,
+    color           VARCHAR(20) DEFAULT '#2563EB',
+    dedup_window    INTEGER DEFAULT 5,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    updated_at      TIMESTAMP DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status);
+CREATE INDEX IF NOT EXISTS idx_videos_context ON videos(context_id);
 CREATE INDEX IF NOT EXISTS idx_detections_video ON detections(video_id);
 CREATE INDEX IF NOT EXISTS idx_detections_review ON detections(review_status);
 CREATE INDEX IF NOT EXISTS idx_analysis_video ON analysis_results(video_id);
 CREATE INDEX IF NOT EXISTS idx_processing_log_path ON processing_log(volume_path);
+CREATE INDEX IF NOT EXISTS idx_contexts_name ON contexts(name);

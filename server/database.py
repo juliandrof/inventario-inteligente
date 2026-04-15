@@ -204,8 +204,10 @@ async def init_db_pool():
 def _auto_create_tables(conn):
     """Create tables if they don't exist (auto-setup on first deploy)."""
     cur = conn.cursor()
-    try:
-        cur.execute("""
+
+    # ---- schema statements executed individually so one failure doesn't block the rest ----
+    schema_statements = [
+        ("CREATE TABLE videos", """
             CREATE TABLE IF NOT EXISTS videos (
                 video_id BIGINT PRIMARY KEY, filename VARCHAR(500) NOT NULL,
                 volume_path VARCHAR(1000) NOT NULL, file_size_bytes BIGINT,
@@ -213,13 +215,17 @@ def _auto_create_tables(conn):
                 resolution VARCHAR(50), upload_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
                 status VARCHAR(20) NOT NULL DEFAULT 'PENDING', progress_pct DOUBLE PRECISION DEFAULT 0,
                 source VARCHAR(20), uploaded_by VARCHAR(200), error_message TEXT,
-                context_id BIGINT, context_name VARCHAR(200));
+                context_id BIGINT, context_name VARCHAR(200))
+        """),
+        ("CREATE TABLE analysis_results", """
             CREATE TABLE IF NOT EXISTS analysis_results (
                 result_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
                 analysis_timestamp TIMESTAMP NOT NULL DEFAULT NOW(), scores_json TEXT NOT NULL,
                 overall_risk DOUBLE PRECISION, total_detections INTEGER,
                 scan_fps DOUBLE PRECISION, detail_fps DOUBLE PRECISION,
-                model_used VARCHAR(200), config_snapshot TEXT);
+                model_used VARCHAR(200), config_snapshot TEXT)
+        """),
+        ("CREATE TABLE detections", """
             CREATE TABLE IF NOT EXISTS detections (
                 detection_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
                 result_id BIGINT NOT NULL REFERENCES analysis_results(result_id),
@@ -227,42 +233,73 @@ def _auto_create_tables(conn):
                 score INTEGER NOT NULL, confidence DOUBLE PRECISION, ai_description TEXT,
                 thumbnail_path VARCHAR(500), frame_index BIGINT,
                 review_status VARCHAR(20) DEFAULT 'PENDING', reviewed_by VARCHAR(200),
-                reviewed_at TIMESTAMP, reviewer_notes TEXT);
+                reviewed_at TIMESTAMP, reviewer_notes TEXT)
+        """),
+        ("CREATE TABLE processing_log", """
             CREATE TABLE IF NOT EXISTS processing_log (
                 log_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
                 volume_path VARCHAR(1000) NOT NULL, file_hash VARCHAR(64),
                 processed_at TIMESTAMP NOT NULL DEFAULT NOW(), status VARCHAR(20) NOT NULL,
-                processing_time_sec DOUBLE PRECISION);
+                processing_time_sec DOUBLE PRECISION)
+        """),
+        ("CREATE TABLE configurations", """
             CREATE TABLE IF NOT EXISTS configurations (
                 config_id BIGINT PRIMARY KEY, config_key VARCHAR(200) NOT NULL UNIQUE,
                 config_value TEXT NOT NULL, description TEXT,
-                updated_at TIMESTAMP DEFAULT NOW(), updated_by VARCHAR(200));
+                updated_at TIMESTAMP DEFAULT NOW(), updated_by VARCHAR(200))
+        """),
+        ("CREATE TABLE branding", """
             CREATE TABLE IF NOT EXISTS branding (
                 setting_id BIGINT PRIMARY KEY, setting_key VARCHAR(200) NOT NULL UNIQUE,
-                setting_value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT NOW());
+                setting_value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT NOW())
+        """),
+        ("CREATE TABLE review_log", """
             CREATE TABLE IF NOT EXISTS review_log (
                 review_log_id BIGINT PRIMARY KEY, detection_id BIGINT NOT NULL,
                 video_id BIGINT NOT NULL, action VARCHAR(20) NOT NULL,
                 previous_status VARCHAR(20), reviewer VARCHAR(200) NOT NULL,
-                notes TEXT, action_timestamp TIMESTAMP NOT NULL DEFAULT NOW());
+                notes TEXT, action_timestamp TIMESTAMP NOT NULL DEFAULT NOW())
+        """),
+        ("CREATE TABLE contexts", """
             CREATE TABLE IF NOT EXISTS contexts (
                 context_id BIGINT PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE,
                 description TEXT, categories TEXT NOT NULL DEFAULT '["fadiga", "distracao"]',
                 scan_prompt TEXT NOT NULL, scan_fps DOUBLE PRECISION DEFAULT 0.2,
                 detail_fps DOUBLE PRECISION DEFAULT 1.0, score_threshold INTEGER DEFAULT 4,
-                created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW());
-            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_id BIGINT;
-            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_name VARCHAR(200);
-            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_color VARCHAR(20);
-            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#2563EB';
-            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS dedup_window INTEGER DEFAULT 5;
+                created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())
+        """),
+        ("ALTER videos add context_id", """
+            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_id BIGINT
+        """),
+        ("ALTER videos add context_name", """
+            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_name VARCHAR(200)
+        """),
+        ("ALTER videos add context_color", """
+            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_color VARCHAR(20)
+        """),
+        ("ALTER contexts add color", """
+            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#2563EB'
+        """),
+        ("ALTER contexts add dedup_window", """
+            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS dedup_window INTEGER DEFAULT 5
+        """),
+        ("UPDATE videos context_color from contexts", """
             UPDATE videos SET context_color = c.color
                 FROM contexts c WHERE videos.context_name = c.name
-                AND (videos.context_color IS NULL OR videos.context_color = '');
-        """)
-        logger.info("Tables verified/created")
+                AND (videos.context_color IS NULL OR videos.context_color = '')
+        """),
+    ]
 
-        # Seed defaults if empty
+    for label, sql in schema_statements:
+        try:
+            cur.execute(sql)
+        except Exception as e:
+            logger.warning(f"Auto-setup [{label}]: {e}")
+
+    logger.info("Tables verified/created")
+
+    # ---- seed defaults ----
+    try:
         cur.execute("SELECT COUNT(*) FROM configurations")
         if cur.fetchone()[0] == 0:
             cur.execute("""
@@ -274,8 +311,10 @@ def _auto_create_tables(conn):
                 (5, 'score_threshold', '4', 'Minimum score to flag', NOW())
             """)
             logger.info("Default configurations seeded")
+    except Exception as e:
+        logger.warning(f"Auto-setup [seed configurations]: {e}")
 
-        # Seed timezone if not present
+    try:
         cur.execute("SELECT 1 FROM configurations WHERE config_key = 'timezone'")
         if not cur.fetchone():
             cur.execute("""
@@ -283,7 +322,10 @@ def _auto_create_tables(conn):
                 VALUES (%(id)s, 'timezone', 'America/Sao_Paulo', 'Timezone for dates and file names', NOW())
             """, {"id": int(time.time() * 1000)})
             logger.info("Default timezone seeded")
+    except Exception as e:
+        logger.warning(f"Auto-setup [seed timezone]: {e}")
 
+    try:
         cur.execute("SELECT COUNT(*) FROM branding")
         if cur.fetchone()[0] == 0:
             cur.execute("""
@@ -295,9 +337,9 @@ def _auto_create_tables(conn):
             """)
             logger.info("Default branding seeded")
     except Exception as e:
-        logger.error(f"Auto-setup failed: {e}")
-    finally:
-        cur.close()
+        logger.warning(f"Auto-setup [seed branding]: {e}")
+
+    cur.close()
 
 
 async def close_db_pool():
