@@ -129,16 +129,26 @@ w = WorkspaceClient()
 # --- Verificar se o projeto ja existe ---
 print(f"Verificando se o projeto '{LAKEBASE_PROJECT}' ja existe...")
 
+import requests as _req
+
+_dbx_host = f"https://{workspace_url}"
+_dbx_token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
+_headers = {"Authorization": f"Bearer {_dbx_token}", "Content-Type": "application/json"}
+print(f"  Host: {_dbx_host}")
+
 project_exists = False
 lakebase_host = None
 
 try:
-    projects = list(w.api_client.do("GET", "/api/2.0/postgres/projects", query={"page_size": "200"}).get("projects", []))
-    for p in projects:
+    resp = _req.get(f"{_dbx_host}/api/2.0/postgres/projects", headers=_headers, params={"page_size": "200"})
+    resp.raise_for_status()
+    for p in resp.json().get("projects", []):
         if p.get("name", "") == f"projects/{LAKEBASE_PROJECT}":
             project_exists = True
             print(f"  Projeto encontrado: {p['name']}")
             break
+    if not project_exists:
+        print(f"  Projeto nao encontrado na lista.")
 except Exception as e:
     print(f"  Erro ao listar projetos: {e}")
 
@@ -146,14 +156,18 @@ except Exception as e:
 if not project_exists:
     print(f"\nCriando projeto Lakebase '{LAKEBASE_PROJECT}'...")
     try:
-        result = w.api_client.do("POST", "/api/2.0/postgres/projects", query={
-            "project_id": LAKEBASE_PROJECT
-        }, body={
-            "spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}
-        })
+        resp = _req.post(
+            f"{_dbx_host}/api/2.0/postgres/projects",
+            headers=_headers,
+            params={"project_id": LAKEBASE_PROJECT},
+            json={"spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}}
+        )
+        resp.raise_for_status()
+        result = resp.json()
         print(f"  Projeto criado: {result.get('name', LAKEBASE_PROJECT)}")
     except Exception as e:
-        if "already exists" in str(e).lower():
+        err_text = str(e).lower()
+        if "already exists" in err_text:
             print(f"  Projeto ja existe (confirmado via erro)")
             project_exists = True
         else:
@@ -161,13 +175,33 @@ if not project_exists:
 else:
     print(f"  Projeto ja existe, reutilizando.")
 
+# --- Verificar que o projeto realmente existe ---
+print(f"\nVerificando projeto...")
+for _check in range(6):
+    try:
+        resp = _req.get(f"{_dbx_host}/api/2.0/postgres/projects", headers=_headers, params={"page_size": "200"})
+        for p in resp.json().get("projects", []):
+            if p.get("name", "") == f"projects/{LAKEBASE_PROJECT}":
+                project_exists = True
+                print(f"  [OK] Projeto confirmado: {p['name']}")
+                break
+        if project_exists:
+            break
+    except Exception:
+        pass
+    print(f"  Aguardando projeto aparecer... (tentativa {_check+1}/6)")
+    time.sleep(10)
+
+if not project_exists:
+    raise Exception(f"Projeto '{LAKEBASE_PROJECT}' nao foi encontrado apos criacao. Verifique manualmente.")
+
 # --- Aguardar endpoint ficar ativo ---
 print(f"\nAguardando endpoint ficar ACTIVE...")
 branch_path = f"projects/{LAKEBASE_PROJECT}/branches/production"
 
 for attempt in range(30):
     try:
-        endpoints_data = w.api_client.do("GET", f"/api/2.0/postgres/{branch_path}/endpoints")
+        endpoints_data = _req.get(f"{_dbx_host}/api/2.0/postgres/{branch_path}/endpoints", headers=_headers).json()
         endpoints = endpoints_data.get("endpoints", [])
         if endpoints:
             ep = endpoints[0]
@@ -239,7 +273,7 @@ print("Gerando credenciais temporarias para Lakebase...")
 endpoint_name = f"projects/{LAKEBASE_PROJECT}/branches/production/endpoints/primary"
 
 try:
-    cred = w.api_client.do("POST", "/api/2.0/postgres/credentials", body={"endpoint": endpoint_name})
+    cred = _req.post(f"{_dbx_host}/api/2.0/postgres/credentials", headers=_headers, json={"endpoint": endpoint_name}).json()
     db_token = cred.get("token", "")
     db_user = current_user
     print(f"  Credencial gerada para: {db_user}")
@@ -607,7 +641,7 @@ sp_client_id = None
 
 # Tentar obter app existente
 try:
-    app_info = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+    app_info = _req.get(f"{_dbx_host}/api/2.0/apps/{APP_NAME}", headers=_headers).json()
     sp_client_id = app_info.get("service_principal_client_id", "")
     print(f"  App ja existe: {APP_NAME}")
     print(f"  URL: {app_info.get('url', 'N/A')}")
@@ -615,10 +649,12 @@ try:
 except Exception:
     print(f"  App nao existe, criando...")
     try:
-        app_info = w.api_client.do("POST", "/api/2.0/apps", body={
+        resp = _req.post(f"{_dbx_host}/api/2.0/apps", headers=_headers, json={
             "name": APP_NAME,
             "description": "Databricks Scenic Crawler AI - Video Analysis"
         })
+        resp.raise_for_status()
+        app_info = resp.json()
         sp_client_id = app_info.get("service_principal_client_id", "")
         print(f"  [OK] App criada: {APP_NAME}")
         print(f"  SP Client ID: {sp_client_id}")
@@ -626,7 +662,7 @@ except Exception:
         # Aguardar app ficar pronta
         print(f"  Aguardando app ficar pronta...")
         time.sleep(10)
-        app_info = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+        app_info = _req.get(f"{_dbx_host}/api/2.0/apps/{APP_NAME}", headers=_headers).json()
         sp_client_id = app_info.get("service_principal_client_id", "")
     except Exception as e:
         raise Exception(f"Falha ao criar app: {e}")
@@ -646,14 +682,14 @@ print(f"\nConcedendo permissao de leitura ao SP no source path...")
 try:
     obj_status = w.workspace.get_status(source_path)
     obj_id = obj_status.object_id
-    w.api_client.do("PUT", "/api/2.0/permissions/directories/" + str(obj_id), body={
+    _req.put(f"{_dbx_host}/api/2.0/permissions/directories/{obj_id}", headers=_headers, json={
         "access_control_list": [
             {
                 "service_principal_name": app_info.get("service_principal_name", f"app-{APP_NAME}"),
                 "all_permissions": [{"permission_level": "CAN_READ"}]
             }
         ]
-    })
+    }).raise_for_status()
     print(f"  [OK] Permissao CAN_READ concedida no folder (object_id={obj_id})")
 except Exception as e:
     print(f"  [!!] Falha ao dar permissao: {e}")
@@ -674,7 +710,7 @@ except Exception as e:
 # --- Configurar role PG para o Service Principal ---
 print(f"Configurando role PostgreSQL para SP: {sp_client_id}")
 
-cred = w.api_client.do("POST", "/api/2.0/postgres/credentials", body={"endpoint": endpoint_name})
+cred = _req.post(f"{_dbx_host}/api/2.0/postgres/credentials", headers=_headers, json={"endpoint": endpoint_name}).json()
 db_token = cred.get("token", "")
 
 conn = psycopg2.connect(
@@ -831,7 +867,7 @@ print(f"  THUMBNAILS:  {THUMBNAIL_VOLUME_PATH}")
 print(f"Aguardando compute da app '{APP_NAME}' ficar ativo...")
 for attempt in range(40):
     try:
-        app_status = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+        app_status = _req.get(f"{_dbx_host}/api/2.0/apps/{APP_NAME}", headers=_headers).json()
         compute_state = app_status.get("compute_status", {}).get("state", "UNKNOWN")
         if compute_state == "ACTIVE":
             print(f"  [OK] Compute ACTIVE!")
@@ -853,10 +889,12 @@ print(f"\nIniciando deploy da app '{APP_NAME}'...")
 print(f"  Source: {source_path}")
 
 try:
-    deploy = w.api_client.do("POST", f"/api/2.0/apps/{APP_NAME}/deployments", body={
+    resp = _req.post(f"{_dbx_host}/api/2.0/apps/{APP_NAME}/deployments", headers=_headers, json={
         "source_code_path": source_path,
         "mode": "SNAPSHOT"
     })
+    resp.raise_for_status()
+    deploy = resp.json()
     deploy_id = deploy.get("deployment_id", "")
     print(f"  Deploy ID: {deploy_id}")
     print(f"  Status: {deploy.get('status', {}).get('state', 'N/A')}")
@@ -868,7 +906,7 @@ print(f"\nAcompanhando deploy...")
 for attempt in range(40):
     time.sleep(15)
     try:
-        status = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}/deployments/{deploy_id}")
+        status = _req.get(f"{_dbx_host}/api/2.0/apps/{APP_NAME}/deployments/{deploy_id}", headers=_headers).json()
         state = status.get("status", {}).get("state", "UNKNOWN")
         message = status.get("status", {}).get("message", "")
 
