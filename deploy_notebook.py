@@ -127,20 +127,40 @@ from databricks.sdk import WorkspaceClient
 
 w = WorkspaceClient()
 
-# Helper: chamadas API via curl (mais confiavel em serverless que SDK/requests)
+# Helper: chamadas API via urllib (stdlib, sem dependencias externas)
+import urllib.request
+import ssl
+
 _api_token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 _api_host = f"https://{workspace_url}"
+_ssl_ctx = ssl.create_default_context()
+# Fallback: tentar com verificacao; se falhar, sem verificacao
+try:
+    urllib.request.urlopen(urllib.request.Request(f"{_api_host}/api/2.0/clusters/spark-versions", headers={"Authorization": f"Bearer {_api_token}"}), context=_ssl_ctx, timeout=10)
+except ssl.SSLError:
+    _ssl_ctx = ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = ssl.CERT_NONE
+except Exception:
+    pass
 
 def _api(method, path, body=None):
-    """Faz chamadas REST API via curl (contorna problemas de SSL no serverless)."""
+    """Faz chamadas REST API via urllib (stdlib)."""
     url = f"{_api_host}{path}"
-    cmd = ["curl", "-s", "-X", method, url, "-H", f"Authorization: Bearer {_api_token}", "-H", "Content-Type: application/json"]
-    if body:
-        cmd += ["-d", json.dumps(body)]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    if result.returncode != 0:
-        raise Exception(f"curl falhou: {result.stderr}")
-    return json.loads(result.stdout) if result.stdout.strip() else {}
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, method=method, headers={
+        "Authorization": f"Bearer {_api_token}",
+        "Content-Type": "application/json"
+    })
+    try:
+        with urllib.request.urlopen(req, context=_ssl_ctx, timeout=30) as resp:
+            return json.loads(resp.read().decode()) if resp.status == 200 else {}
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode()
+        try:
+            return json.loads(body_text)  # retorna o erro como dict com error_code
+        except Exception:
+            raise Exception(f"HTTP {e.code}: {body_text[:200]}")
 
 print(f"  API Host: {_api_host}")
 
@@ -195,8 +215,10 @@ branch_path = f"projects/{LAKEBASE_PROJECT}/branches/production"
 for attempt in range(60):
     try:
         endpoints_data = _api("GET", f"/api/2.0/postgres/{branch_path}/endpoints")
+        if attempt < 3:
+            print(f"  [DEBUG] Resposta: {json.dumps(endpoints_data)[:300]}")
         if "error_code" in endpoints_data:
-            print(f"  Projeto provisionando... (tentativa {attempt+1}/60)")
+            print(f"  Projeto provisionando... {endpoints_data.get('message','')} (tentativa {attempt+1}/60)")
         else:
             endpoints = endpoints_data.get("endpoints", [])
             if endpoints:
