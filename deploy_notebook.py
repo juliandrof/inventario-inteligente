@@ -474,8 +474,9 @@ resources:
 """
 
 import io
+from databricks.sdk.service.workspace import ImportFormat
 app_yaml_path = f"{source_path}/app.yaml"
-w.workspace.upload(app_yaml_path, io.BytesIO(app_yaml_content.encode("utf-8")), format="AUTO", overwrite=True)
+w.workspace.upload(app_yaml_path, io.BytesIO(app_yaml_content.encode("utf-8")), format=ImportFormat.AUTO, overwrite=True)
 print(f"app.yaml enviado para: {app_yaml_path}")
 
 # COMMAND ----------
