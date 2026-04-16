@@ -724,22 +724,41 @@ print(f"  Service Principal ID:   {sp_id}")
 print(f"  Este UUID sera usado como usuario PostgreSQL.")
 
 # --- Dar permissao ao SP no source code folder ---
-print(f"\nConcedendo permissao de leitura ao SP no source path...")
+sp_name = app_info.get("service_principal_name", "")
+print(f"\nConcedendo permissao de leitura ao SP '{sp_name}' no source path...")
 try:
     obj_status = w.workspace.get_status(source_path)
     obj_id = obj_status.object_id
-    w.api_client.do("PUT", f"/api/2.0/permissions/directories/{obj_id}", body={
+
+    # PATCH adiciona permissoes (PUT substitui todas)
+    w.api_client.do("PATCH", f"/api/2.0/permissions/directories/{obj_id}", body={
         "access_control_list": [
             {
-                "service_principal_name": app_info.get("service_principal_name", f"app-{APP_NAME}"),
-                "all_permissions": [{"permission_level": "CAN_READ"}]
+                "service_principal_name": sp_name,
+                "permission_level": "CAN_MANAGE"
             }
         ]
     })
-    print(f"  [OK] Permissao CAN_READ concedida no folder (object_id={obj_id})")
+    print(f"  [OK] Permissao CAN_MANAGE concedida (object_id={obj_id})")
 except Exception as e:
-    print(f"  [!!] Falha ao dar permissao: {e}")
-    print(f"       Tente manualmente: Workspace > {source_path} > Permissions > Add SP")
+    print(f"  [!!] Falha via API: {e}")
+    print(f"       Tentando via SDK...")
+    try:
+        from databricks.sdk.service.iam import WorkspaceObjectPermission, WorkspaceObjectAccessControlRequest, WorkspaceObjectPermissionLevel
+        w.permissions.update(
+            "directories",
+            str(obj_id),
+            access_control_list=[
+                WorkspaceObjectAccessControlRequest(
+                    service_principal_name=sp_name,
+                    permission_level=WorkspaceObjectPermissionLevel.CAN_MANAGE
+                )
+            ]
+        )
+        print(f"  [OK] Permissao concedida via SDK")
+    except Exception as e2:
+        print(f"  [!!] Falha via SDK tambem: {e2}")
+        print(f"       Tente manualmente: Workspace > {source_path} > Permissions > Add '{sp_name}' com CAN_MANAGE")
 
 # COMMAND ----------
 
