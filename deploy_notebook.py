@@ -807,8 +807,29 @@ print(f"  THUMBNAILS:  {THUMBNAIL_VOLUME_PATH}")
 
 # COMMAND ----------
 
+# --- Aguardar app compute ficar ativo ---
+print(f"Aguardando compute da app '{APP_NAME}' ficar ativo...")
+for attempt in range(40):
+    try:
+        app_status = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+        compute_state = app_status.get("compute_status", {}).get("state", "UNKNOWN")
+        if compute_state == "ACTIVE":
+            print(f"  [OK] Compute ACTIVE!")
+            break
+        elif compute_state in ("ERROR", "FAILED"):
+            raise Exception(f"Compute falhou: {compute_state}")
+        else:
+            print(f"  Estado: {compute_state} (tentativa {attempt+1}/40)")
+    except Exception as e:
+        if "falhou" in str(e).lower():
+            raise
+        print(f"  Verificando... ({e})")
+    time.sleep(15)
+else:
+    raise Exception("Timeout: compute da app nao ficou ativo em 10 minutos.")
+
 # --- Deploy ---
-print(f"Iniciando deploy da app '{APP_NAME}'...")
+print(f"\nIniciando deploy da app '{APP_NAME}'...")
 print(f"  Source: {source_path}")
 
 try:
