@@ -635,9 +635,29 @@ if not sp_client_id:
     raise Exception("Nao foi possivel obter o Service Principal da app. Verifique no console Compute > Apps.")
 
 app_url = app_info.get("url", f"https://{APP_NAME}-WORKSPACE_ID.aws.databricksapps.com")
+sp_id = app_info.get("service_principal_id", "")
 
 print(f"\n  Service Principal UUID: {sp_client_id}")
+print(f"  Service Principal ID:   {sp_id}")
 print(f"  Este UUID sera usado como usuario PostgreSQL.")
+
+# --- Dar permissao ao SP no source code folder ---
+print(f"\nConcedendo permissao de leitura ao SP no source path...")
+try:
+    obj_status = w.workspace.get_status(source_path)
+    obj_id = obj_status.object_id
+    w.api_client.do("PUT", "/api/2.0/permissions/directories/" + str(obj_id), body={
+        "access_control_list": [
+            {
+                "service_principal_name": app_info.get("service_principal_name", f"app-{APP_NAME}"),
+                "all_permissions": [{"permission_level": "CAN_READ"}]
+            }
+        ]
+    })
+    print(f"  [OK] Permissao CAN_READ concedida no folder (object_id={obj_id})")
+except Exception as e:
+    print(f"  [!!] Falha ao dar permissao: {e}")
+    print(f"       Tente manualmente: Workspace > {source_path} > Permissions > Add SP")
 
 # COMMAND ----------
 
