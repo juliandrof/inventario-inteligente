@@ -146,8 +146,9 @@ except Exception as e:
 if not project_exists:
     print(f"\nCriando projeto Lakebase '{LAKEBASE_PROJECT}'...")
     try:
-        result = w.api_client.do("POST", "/api/2.0/postgres/projects", body={
-            "project_id": LAKEBASE_PROJECT,
+        result = w.api_client.do("POST", "/api/2.0/postgres/projects", query={
+            "project_id": LAKEBASE_PROJECT
+        }, body={
             "spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}
         })
         print(f"  Projeto criado: {result.get('name', LAKEBASE_PROJECT)}")
