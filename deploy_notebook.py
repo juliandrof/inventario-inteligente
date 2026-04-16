@@ -698,7 +698,7 @@ except Exception as e:
 # --- Configurar role PG para o Service Principal ---
 print(f"Configurando role PostgreSQL para SP: {sp_client_id}")
 
-cred = _req.post(f"{_dbx_host}/api/2.0/postgres/credentials", headers=_headers, json={"endpoint": endpoint_name}).json()
+cred = w.api_client.do("POST", "/api/2.0/postgres/credentials", body={"endpoint": endpoint_name})
 db_token = cred.get("token", "")
 
 conn = psycopg2.connect(
