@@ -53,7 +53,7 @@ dbutils.widgets.text("lakebase_project", "scenic-crawler", "1. Nome do Projeto L
 dbutils.widgets.text("database_name", "scenic_crawler", "2. Nome do Database")
 dbutils.widgets.text("catalog_name", "", "3. Catalog (Unity Catalog)")
 dbutils.widgets.text("schema_name", "scenic_crawler", "4. Schema")
-dbutils.widgets.text("app_name", "dbxsc-ai", "5. Nome da App")
+dbutils.widgets.text("app_name", "scenic-crawler-ai", "5. Nome da App")
 dbutils.widgets.text("vision_model", "databricks-llama-4-maverick", "6. Modelo de Visao (endpoint)")
 dbutils.widgets.text("git_repo_url", "https://github.com/juliandrof/Databricks-Scenic-Crawler-AI.git", "7. URL do Repo Git")
 dbutils.widgets.text("db_password", "scenic-crawler-2026", "8. Senha PG para o Service Principal")
@@ -75,9 +75,16 @@ import re
 current_user = spark.sql("SELECT current_user()").collect()[0][0]
 workspace_url = spark.conf.get("spark.databricks.workspaceUrl", "")
 
-# Se catalog nao foi especificado, usar padrao baseado no usuario
+# Se catalog nao foi especificado, detectar o default do workspace
 if not CATALOG_NAME:
-    CATALOG_NAME = re.sub(r'[^a-zA-Z0-9_]', '_', current_user.split('@')[0]) + "_scenic"
+    try:
+        default_cat = spark.sql("SELECT current_catalog()").collect()[0][0]
+        if default_cat and default_cat not in ("hive_metastore", "system", "samples"):
+            CATALOG_NAME = default_cat
+        else:
+            CATALOG_NAME = re.sub(r'[^a-zA-Z0-9_]', '_', current_user.split('@')[0]) + "_scenic"
+    except Exception:
+        CATALOG_NAME = re.sub(r'[^a-zA-Z0-9_]', '_', current_user.split('@')[0]) + "_scenic"
 
 VIDEO_VOLUME_PATH = f"/Volumes/{CATALOG_NAME}/{SCHEMA_NAME}/uploaded_videos"
 THUMBNAIL_VOLUME_PATH = f"/Volumes/{CATALOG_NAME}/{SCHEMA_NAME}/thumbnails"
@@ -479,10 +486,24 @@ try:
 except Exception as e:
     if "already exists" in str(e).lower():
         print(f"  [--] Catalog '{CATALOG_NAME}' ja existe")
+    elif "storage root" in str(e).lower() or "default storage" in str(e).lower():
+        print(f"  [!!] Nao foi possivel criar catalog '{CATALOG_NAME}' (sem storage root).")
+        print(f"       Tentando usar o catalog default do workspace...")
+        try:
+            fallback = spark.sql("SELECT current_catalog()").collect()[0][0]
+            if fallback and fallback not in ("hive_metastore", "system", "samples"):
+                CATALOG_NAME = fallback
+                VIDEO_VOLUME_PATH = f"/Volumes/{CATALOG_NAME}/{SCHEMA_NAME}/uploaded_videos"
+                THUMBNAIL_VOLUME_PATH = f"/Volumes/{CATALOG_NAME}/{SCHEMA_NAME}/thumbnails"
+                print(f"  [OK] Usando catalog existente: '{CATALOG_NAME}'")
+            else:
+                raise Exception(f"Catalog default '{fallback}' nao e utilizavel")
+        except Exception as e2:
+            print(f"  [!!] Fallback falhou: {e2}")
+            print(f"       Altere o widget 'catalog_name' para um catalog existente.")
     else:
         print(f"  [!!] Catalog: {e}")
-        print(f"       Se voce nao tem permissao para criar catalogs,")
-        print(f"       altere o widget 'catalog_name' para um catalog existente.")
+        print(f"       Altere o widget 'catalog_name' para um catalog existente.")
 
 # --- Schema ---
 try:
