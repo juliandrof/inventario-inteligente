@@ -122,18 +122,36 @@ print("=" * 60)
 
 import time
 import json
+import subprocess
 from databricks.sdk import WorkspaceClient
 
 w = WorkspaceClient()
 
+# Helper: chamadas API via curl (mais confiavel em serverless que SDK/requests)
+_api_token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
+_api_host = f"https://{workspace_url}"
+
+def _api(method, path, body=None):
+    """Faz chamadas REST API via curl (contorna problemas de SSL no serverless)."""
+    url = f"{_api_host}{path}"
+    cmd = ["curl", "-s", "-X", method, url, "-H", f"Authorization: Bearer {_api_token}", "-H", "Content-Type: application/json"]
+    if body:
+        cmd += ["-d", json.dumps(body)]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        raise Exception(f"curl falhou: {result.stderr}")
+    return json.loads(result.stdout) if result.stdout.strip() else {}
+
+print(f"  API Host: {_api_host}")
+
 # --- Verificar se o projeto ja existe ---
-print(f"Verificando se o projeto '{LAKEBASE_PROJECT}' ja existe...")
+print(f"\nVerificando se o projeto '{LAKEBASE_PROJECT}' ja existe...")
 
 project_exists = False
 lakebase_host = None
 
 try:
-    projects_data = w.api_client.do("GET", "/api/2.0/postgres/projects?page_size=200")
+    projects_data = _api("GET", "/api/2.0/postgres/projects?page_size=200")
     for p in projects_data.get("projects", []):
         if p.get("name", "") == f"projects/{LAKEBASE_PROJECT}":
             project_exists = True
@@ -148,13 +166,19 @@ except Exception as e:
 if not project_exists:
     print(f"\nCriando projeto Lakebase '{LAKEBASE_PROJECT}'...")
     try:
-        result = w.api_client.do(
+        result = _api(
             "POST",
             f"/api/2.0/postgres/projects?project_id={LAKEBASE_PROJECT}",
             body={"spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}}
         )
-        print(f"  Resposta da criacao: {json.dumps(result, indent=2)[:500]}")
-        print(f"  Projeto sendo provisionado (operacao async)...")
+        if "error_code" in result:
+            if "already exists" in result.get("message", "").lower():
+                print(f"  Projeto ja existe (confirmado via API)")
+                project_exists = True
+            else:
+                raise Exception(result.get("message", str(result)))
+        else:
+            print(f"  Projeto criado (operacao async)")
     except Exception as e:
         if "already exists" in str(e).lower():
             print(f"  Projeto ja existe (confirmado via erro)")
@@ -164,35 +188,32 @@ if not project_exists:
 else:
     print(f"  Projeto ja existe, reutilizando.")
 
-# --- Aguardar endpoint ficar ativo (unifica verificacao + espera) ---
-# O projeto e criado de forma async. Vamos aguardar diretamente o endpoint ficar ACTIVE.
-# Isso implicitamente confirma que o projeto existe e esta pronto.
-print(f"\nAguardando Lakebase ficar ACTIVE (projeto + endpoint)...")
+# --- Aguardar endpoint ficar ativo ---
+print(f"\nAguardando Lakebase ficar ACTIVE...")
 branch_path = f"projects/{LAKEBASE_PROJECT}/branches/production"
 
 for attempt in range(60):
     try:
-        endpoints_data = w.api_client.do("GET", f"/api/2.0/postgres/{branch_path}/endpoints")
-        endpoints = endpoints_data.get("endpoints", [])
-        if endpoints:
-            ep = endpoints[0]
-            state = ep.get("status", {}).get("current_state", "UNKNOWN")
-            host = ep.get("status", {}).get("hosts", {}).get("host", "")
-            if state == "ACTIVE" and host:
-                lakebase_host = host
-                print(f"  Endpoint ACTIVE!")
-                print(f"  Host: {lakebase_host}")
-                break
+        endpoints_data = _api("GET", f"/api/2.0/postgres/{branch_path}/endpoints")
+        if "error_code" in endpoints_data:
+            print(f"  Projeto provisionando... (tentativa {attempt+1}/60)")
+        else:
+            endpoints = endpoints_data.get("endpoints", [])
+            if endpoints:
+                ep = endpoints[0]
+                state = ep.get("status", {}).get("current_state", "UNKNOWN")
+                host = ep.get("status", {}).get("hosts", {}).get("host", "")
+                if state == "ACTIVE" and host:
+                    lakebase_host = host
+                    print(f"  Endpoint ACTIVE!")
+                    print(f"  Host: {lakebase_host}")
+                    break
+                else:
+                    print(f"  Estado: {state} (tentativa {attempt+1}/60)")
             else:
-                print(f"  Estado: {state} (tentativa {attempt+1}/60)")
-        else:
-            print(f"  Nenhum endpoint encontrado ainda (tentativa {attempt+1}/60)")
+                print(f"  Nenhum endpoint ainda (tentativa {attempt+1}/60)")
     except Exception as e:
-        err_msg = str(e)
-        if "not found" in err_msg.lower():
-            print(f"  Projeto ainda provisionando... (tentativa {attempt+1}/60)")
-        else:
-            print(f"  Aguardando... ({err_msg[:100]})")
+        print(f"  Aguardando... ({str(e)[:100]})")
     time.sleep(10)
 
 if not lakebase_host:
@@ -248,7 +269,7 @@ print("Gerando credenciais temporarias para Lakebase...")
 endpoint_name = f"projects/{LAKEBASE_PROJECT}/branches/production/endpoints/primary"
 
 try:
-    cred = w.api_client.do("POST", "/api/2.0/postgres/credentials", body={"endpoint": endpoint_name})
+    cred = _api("POST", "/api/2.0/postgres/credentials", body={"endpoint": endpoint_name})
     db_token = cred.get("token", "")
     db_user = current_user
     print(f"  Credencial gerada para: {db_user}")
@@ -616,7 +637,7 @@ sp_client_id = None
 
 # Tentar obter app existente
 try:
-    app_info = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+    app_info = _api("GET", f"/api/2.0/apps/{APP_NAME}")
     sp_client_id = app_info.get("service_principal_client_id", "")
     print(f"  App ja existe: {APP_NAME}")
     print(f"  URL: {app_info.get('url', 'N/A')}")
@@ -624,7 +645,7 @@ try:
 except Exception:
     print(f"  App nao existe, criando...")
     try:
-        app_info = w.api_client.do("POST", "/api/2.0/apps", body={
+        app_info = _api("POST", "/api/2.0/apps", body={
             "name": APP_NAME,
             "description": "Databricks Scenic Crawler AI - Video Analysis"
         })
@@ -635,7 +656,7 @@ except Exception:
         # Aguardar app ficar pronta
         print(f"  Aguardando app ficar pronta...")
         time.sleep(10)
-        app_info = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+        app_info = _api("GET", f"/api/2.0/apps/{APP_NAME}")
         sp_client_id = app_info.get("service_principal_client_id", "")
     except Exception as e:
         raise Exception(f"Falha ao criar app: {e}")
@@ -655,7 +676,7 @@ print(f"\nConcedendo permissao de leitura ao SP no source path...")
 try:
     obj_status = w.workspace.get_status(source_path)
     obj_id = obj_status.object_id
-    w.api_client.do("PUT", f"/api/2.0/permissions/directories/{obj_id}", body={
+    _api("PUT", f"/api/2.0/permissions/directories/{obj_id}", body={
         "access_control_list": [
             {
                 "service_principal_name": app_info.get("service_principal_name", f"app-{APP_NAME}"),
@@ -840,7 +861,7 @@ print(f"  THUMBNAILS:  {THUMBNAIL_VOLUME_PATH}")
 print(f"Aguardando compute da app '{APP_NAME}' ficar ativo...")
 for attempt in range(40):
     try:
-        app_status = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}")
+        app_status = _api("GET", f"/api/2.0/apps/{APP_NAME}")
         compute_state = app_status.get("compute_status", {}).get("state", "UNKNOWN")
         if compute_state == "ACTIVE":
             print(f"  [OK] Compute ACTIVE!")
@@ -862,7 +883,7 @@ print(f"\nIniciando deploy da app '{APP_NAME}'...")
 print(f"  Source: {source_path}")
 
 try:
-    deploy = w.api_client.do("POST", f"/api/2.0/apps/{APP_NAME}/deployments", body={
+    deploy = _api("POST", f"/api/2.0/apps/{APP_NAME}/deployments", body={
         "source_code_path": source_path,
         "mode": "SNAPSHOT"
     })
@@ -877,7 +898,7 @@ print(f"\nAcompanhando deploy...")
 for attempt in range(40):
     time.sleep(15)
     try:
-        status = w.api_client.do("GET", f"/api/2.0/apps/{APP_NAME}/deployments/{deploy_id}")
+        status = _api("GET", f"/api/2.0/apps/{APP_NAME}/deployments/{deploy_id}")
         state = status.get("status", {}).get("state", "UNKNOWN")
         message = status.get("status", {}).get("message", "")
 
