@@ -153,7 +153,8 @@ if not project_exists:
             f"/api/2.0/postgres/projects?project_id={LAKEBASE_PROJECT}",
             body={"spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}}
         )
-        print(f"  Projeto criado: {result.get('name', LAKEBASE_PROJECT)}")
+        print(f"  Resposta da criacao: {json.dumps(result, indent=2)[:500]}")
+        print(f"  Projeto sendo provisionado (operacao async)...")
     except Exception as e:
         if "already exists" in str(e).lower():
             print(f"  Projeto ja existe (confirmado via erro)")
@@ -163,31 +164,13 @@ if not project_exists:
 else:
     print(f"  Projeto ja existe, reutilizando.")
 
-# --- Verificar que o projeto realmente existe ---
-print(f"\nVerificando projeto...")
-for _check in range(6):
-    try:
-        data = w.api_client.do("GET", "/api/2.0/postgres/projects?page_size=200")
-        for p in data.get("projects", []):
-            if p.get("name", "") == f"projects/{LAKEBASE_PROJECT}":
-                project_exists = True
-                print(f"  [OK] Projeto confirmado: {p['name']}")
-                break
-        if project_exists:
-            break
-    except Exception:
-        pass
-    print(f"  Aguardando projeto aparecer... (tentativa {_check+1}/6)")
-    time.sleep(10)
-
-if not project_exists:
-    raise Exception(f"Projeto '{LAKEBASE_PROJECT}' nao foi encontrado apos criacao. Verifique manualmente.")
-
-# --- Aguardar endpoint ficar ativo ---
-print(f"\nAguardando endpoint ficar ACTIVE...")
+# --- Aguardar endpoint ficar ativo (unifica verificacao + espera) ---
+# O projeto e criado de forma async. Vamos aguardar diretamente o endpoint ficar ACTIVE.
+# Isso implicitamente confirma que o projeto existe e esta pronto.
+print(f"\nAguardando Lakebase ficar ACTIVE (projeto + endpoint)...")
 branch_path = f"projects/{LAKEBASE_PROJECT}/branches/production"
 
-for attempt in range(30):
+for attempt in range(60):
     try:
         endpoints_data = w.api_client.do("GET", f"/api/2.0/postgres/{branch_path}/endpoints")
         endpoints = endpoints_data.get("endpoints", [])
@@ -201,15 +184,19 @@ for attempt in range(30):
                 print(f"  Host: {lakebase_host}")
                 break
             else:
-                print(f"  Estado: {state} (tentativa {attempt+1}/30)")
+                print(f"  Estado: {state} (tentativa {attempt+1}/60)")
         else:
-            print(f"  Nenhum endpoint encontrado ainda (tentativa {attempt+1}/30)")
+            print(f"  Nenhum endpoint encontrado ainda (tentativa {attempt+1}/60)")
     except Exception as e:
-        print(f"  Aguardando... ({e})")
+        err_msg = str(e)
+        if "not found" in err_msg.lower():
+            print(f"  Projeto ainda provisionando... (tentativa {attempt+1}/60)")
+        else:
+            print(f"  Aguardando... ({err_msg[:100]})")
     time.sleep(10)
 
 if not lakebase_host:
-    raise Exception("Timeout: endpoint Lakebase nao ficou ativo em 5 minutos. Verifique no console SQL > Lakebase.")
+    raise Exception("Timeout: Lakebase nao ficou ativo em 10 minutos. Verifique no console SQL > Lakebase.")
 
 print(f"\n{'='*60}")
 print(f"  LAKEBASE PRONTO")
