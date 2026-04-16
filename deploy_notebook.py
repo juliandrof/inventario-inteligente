@@ -120,25 +120,74 @@ print("=" * 60)
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### 2a. Diagnostico de conectividade
+# MAGIC
+# MAGIC Testa qual metodo de chamada API funciona neste ambiente antes de prosseguir.
+
+# COMMAND ----------
+
 import time
 import json
 from databricks.sdk import WorkspaceClient
 
-# SDK com host e token EXPLICITOS — essencial em serverless compute
 _token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
-w = WorkspaceClient(host=f"https://{workspace_url}", token=_token)
+_ws_url = spark.conf.get("spark.databricks.workspaceUrl", "")
 
-# Diagnostico
-print(f"  SDK host:  {w.config.host}")
-print(f"  SDK auth:  token={'OK' if _token else 'MISSING'} ({len(_token)} chars)")
+print("=" * 60)
+print("DIAGNOSTICO DE CONECTIVIDADE")
+print("=" * 60)
 
-# Teste rapido de conectividade
+# Teste 1: SDK default
+w1 = WorkspaceClient()
+print(f"\n1. SDK default -> host: {w1.config.host}")
 try:
-    _test = w.api_client.do("GET", "/api/2.0/clusters/spark-versions")
-    print(f"  SDK test:  OK")
+    r = w1.api_client.do("GET", "/api/2.0/postgres/projects")
+    print(f"   OK: {json.dumps(r)[:200]}")
+    _sdk_mode = "default"
 except Exception as e:
-    print(f"  SDK test:  FALHOU ({e})")
-    print(f"  AVISO: API calls podem falhar. Verifique permissoes e conectividade.")
+    print(f"   FALHOU: {e}")
+    _sdk_mode = None
+
+# Teste 2: SDK com host explicito
+w2 = WorkspaceClient(host=f"https://{_ws_url}", token=_token)
+print(f"\n2. SDK explicit -> host: {w2.config.host}")
+try:
+    r = w2.api_client.do("GET", "/api/2.0/postgres/projects")
+    print(f"   OK: {json.dumps(r)[:200]}")
+    if not _sdk_mode:
+        _sdk_mode = "explicit"
+except Exception as e:
+    print(f"   FALHOU: {e}")
+
+# Teste 3: query param via query= vs url?=
+print(f"\n3. Query param test:")
+_w = w1 if _sdk_mode == "default" else w2
+try:
+    r = _w.api_client.do("GET", "/api/2.0/postgres/projects", query={"page_size": "10"})
+    print(f"   query= kwarg: OK")
+    _query_mode = "kwarg"
+except Exception as e:
+    print(f"   query= kwarg: FALHOU ({e})")
+    _query_mode = None
+
+try:
+    r = _w.api_client.do("GET", "/api/2.0/postgres/projects?page_size=10")
+    print(f"   query in URL: OK")
+    if not _query_mode:
+        _query_mode = "url"
+except Exception as e:
+    print(f"   query in URL: FALHOU ({e})")
+
+print(f"\n{'=' * 60}")
+print(f"  RESULTADO: sdk_mode={_sdk_mode}, query_mode={_query_mode}")
+print(f"{'=' * 60}")
+
+if not _sdk_mode:
+    raise Exception("Nenhum metodo de API funcionou. Verifique permissoes e conectividade.")
+
+# Usar o SDK que funcionou
+w = w1 if _sdk_mode == "default" else w2
 
 # --- Verificar se o projeto ja existe ---
 print(f"\nVerificando se o projeto '{LAKEBASE_PROJECT}' ja existe...")
@@ -147,7 +196,10 @@ project_exists = False
 lakebase_host = None
 
 try:
-    projects_data = w.api_client.do("GET", "/api/2.0/postgres/projects", query={"page_size": "200"})
+    if _query_mode == "kwarg":
+        projects_data = w.api_client.do("GET", "/api/2.0/postgres/projects", query={"page_size": "200"})
+    else:
+        projects_data = w.api_client.do("GET", "/api/2.0/postgres/projects?page_size=200")
     for p in projects_data.get("projects", []):
         if p.get("name", "") == f"projects/{LAKEBASE_PROJECT}":
             project_exists = True
@@ -162,11 +214,17 @@ except Exception as e:
 if not project_exists:
     print(f"\nCriando projeto Lakebase '{LAKEBASE_PROJECT}'...")
     try:
-        result = w.api_client.do(
-            "POST", "/api/2.0/postgres/projects",
-            query={"project_id": LAKEBASE_PROJECT},
-            body={"spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}}
-        )
+        if _query_mode == "kwarg":
+            result = w.api_client.do(
+                "POST", "/api/2.0/postgres/projects",
+                query={"project_id": LAKEBASE_PROJECT},
+                body={"spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}}
+            )
+        else:
+            result = w.api_client.do(
+                "POST", f"/api/2.0/postgres/projects?project_id={LAKEBASE_PROJECT}",
+                body={"spec": {"display_name": f"Scenic Crawler AI - {LAKEBASE_PROJECT}"}}
+            )
         print(f"  Projeto criado (operacao async)")
     except Exception as e:
         if "already exists" in str(e).lower():
