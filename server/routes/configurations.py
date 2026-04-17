@@ -31,3 +31,14 @@ async def update_config(config_key: str, req: ConfigUpdate):
             "INSERT INTO configurations (config_id, config_key, config_value, description, updated_at) VALUES (%(id)s, %(key)s, %(val)s, %(desc)s, NOW())",
             {"id": int(time.time() * 1000), "key": config_key, "val": req.value, "desc": req.description})
     return {"config_key": config_key, "updated": True}
+
+
+@router.post("/clear-all")
+async def clear_all_data():
+    """Delete all analysis data (videos, fixtures, detections, anomalies, stores)."""
+    tables = ["detections", "fixtures", "fixture_summary", "anomalies", "processing_log", "videos", "stores"]
+    deleted = {}
+    for t in tables:
+        rows = execute_update(f"DELETE FROM {t}")
+        deleted[t] = rows
+    return {"cleared": True, "deleted": deleted}

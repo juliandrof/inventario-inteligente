@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchConfigs, updateConfig, fetchBranding, updateBranding, uploadLogo } from '../api';
+import { fetchConfigs, updateConfig, fetchBranding, updateBranding, uploadLogo, clearAllData } from '../api';
 
 function Settings() {
   const [configs, setConfigs] = useState([]);
@@ -99,6 +99,27 @@ function Settings() {
             Upload Logo <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogo} />
           </label>
         </div>
+      </div>
+      <div className="card" style={{ borderTop: '3px solid #EF4444' }}>
+        <h3>Zona de Perigo</h3>
+        <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+          Apagar todos os dados de analise: videos, expositores, deteccoes, anomalias e lojas.
+          As configuracoes e branding serao mantidos.
+        </p>
+        <button className="btn btn-danger" style={{ padding: '10px 24px', fontSize: 14 }}
+          onClick={async () => {
+            if (!confirm('Tem certeza? Todos os videos, expositores e deteccoes serao apagados permanentemente.')) return;
+            if (!confirm('ULTIMA CONFIRMACAO: Esta acao e irreversivel. Continuar?')) return;
+            try {
+              const res = await clearAllData();
+              setMsg(`Base limpa! ${JSON.stringify(res.deleted)}`);
+              setTimeout(() => setMsg(''), 5000);
+            } catch (e) {
+              setMsg(`Erro: ${e.message}`);
+            }
+          }}>
+          Limpar toda a base
+        </button>
       </div>
     </div>
   );

@@ -62,6 +62,7 @@ export const fetchConfigs = () => request('/config');
 export const updateConfig = (key, value, description) => request(`/config/${key}`, {
   method: 'PUT', body: JSON.stringify({ value, description }),
 });
+export const clearAllData = () => request('/config/clear-all', { method: 'POST' });
 
 // Branding
 export const fetchBranding = () => request('/branding');
