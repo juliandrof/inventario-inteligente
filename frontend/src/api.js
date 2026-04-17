@@ -49,6 +49,10 @@ export const fetchStores = (f = {}) => request('/analysis/stores' + qs(f));
 export const fetchStoreDetail = (id) => request(`/analysis/stores/${id}`);
 export const fetchFixtureTypes = () => request('/analysis/fixture-types');
 
+// Review
+export const fetchReviewVideos = (f = {}) => request('/review/videos' + qs(f));
+export const fetchReviewFrames = (videoId) => request(`/review/frames/${videoId}`);
+
 // Reports
 export const fetchReportSummary = (f = {}) => request('/reports/summary' + qs(f));
 export const fetchComparison = (f = {}) => request('/reports/comparison' + qs(f));

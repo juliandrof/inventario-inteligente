@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from server.database import init_db_pool, close_db_pool
-from server.routes import videos, dashboard, analysis, reports, thumbnails, configurations, branding
+from server.routes import videos, dashboard, analysis, review, reports, thumbnails, configurations, branding
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ app = FastAPI(
 app.include_router(videos.router, prefix="/api/videos", tags=["Videos"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
+app.include_router(review.router, prefix="/api/review", tags=["Review"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(thumbnails.router, prefix="/api/thumbnails", tags=["Thumbnails"])
 app.include_router(configurations.router, prefix="/api/config", tags=["Configurations"])

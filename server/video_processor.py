@@ -179,7 +179,10 @@ def process_video(video_id: int, local_path: str, progress_callback=None):
             # Feed to tracker
             tracker.process_frame(detections, frame_idx, timestamp)
 
-            # Save raw detections
+            # Save frame thumbnail (every analyzed frame gets one for review)
+            frame_thumb = save_thumbnail(video_id, jpeg_bytes, timestamp)
+
+            # Save raw detections with frame thumbnail
             for det in detections:
                 det_id = int(time.time() * 1000000) + len(all_detections)
                 pos = det.get("position", {})
@@ -195,13 +198,13 @@ def process_video(video_id: int, local_path: str, progress_callback=None):
                     "occupancy_level": det.get("occupancy", "PARCIAL"),
                     "occupancy_pct": det.get("occupancy_pct", 50),
                     "ai_description": det.get("description", ""),
+                    "thumbnail_path": frame_thumb,
                 })
 
-            # Save thumbnails for highest-confidence observation of each tracked fixture
+            # Also track best thumbnail per unique fixture
             for tf in tracker.tracked_fixtures:
                 if tf.best_frame_index == frame_idx:
-                    thumb = save_thumbnail(video_id, jpeg_bytes, timestamp)
-                    thumbnail_map[tf.tracking_id] = thumb
+                    thumbnail_map[tf.tracking_id] = frame_thumb
 
             analyzed_count += 1
             pct = (analyzed_count / max(1, frames_to_analyze)) * 95
@@ -229,6 +232,9 @@ def process_video(video_id: int, local_path: str, progress_callback=None):
     store_id = video_info[0]["store_id"]
     uf = video_info[0]["uf"]
     video_date = video_info[0]["video_date"]
+
+    # Persist raw detections (for review)
+    _save_detections(all_detections)
 
     # Persist fixtures
     _save_fixtures(video_id, unique_fixtures, thumbnail_map, store_id, uf, video_date)
@@ -258,6 +264,29 @@ def process_video(video_id: int, local_path: str, progress_callback=None):
         progress_callback(video_id, 100)
 
     logger.info(f"[V{video_id}] Done! {len(unique_fixtures)} unique fixtures in {processing_time:.1f}s")
+
+
+def _save_detections(all_detections):
+    """Persist raw per-frame detections to the database for review."""
+    for det in all_detections:
+        execute_update("""
+            INSERT INTO detections
+            (detection_id, video_id, frame_index, timestamp_sec, fixture_type,
+             confidence, bbox_x, bbox_y, thumbnail_path, ai_description,
+             occupancy_level, occupancy_pct)
+            VALUES (%(did)s, %(vid)s, %(fi)s, %(ts)s, %(ft)s,
+                    %(conf)s, %(bx)s, %(by)s, %(thumb)s, %(desc)s,
+                    %(occ)s, %(occ_pct)s)
+        """, {
+            "did": det["detection_id"], "vid": det["video_id"],
+            "fi": det["frame_index"], "ts": det["timestamp_sec"],
+            "ft": det["fixture_type"], "conf": det["confidence"],
+            "bx": det["bbox_x"], "by": det["bbox_y"],
+            "thumb": det.get("thumbnail_path", ""),
+            "desc": det.get("ai_description", ""),
+            "occ": det.get("occupancy_level", "PARCIAL"),
+            "occ_pct": det.get("occupancy_pct", 50),
+        })
 
 
 def _save_fixtures(video_id, unique_fixtures, thumbnail_map, store_id, uf, video_date):
