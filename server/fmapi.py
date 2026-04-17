@@ -140,11 +140,22 @@ Retorne um array JSON. Exemplo:
             },
         ],
         "max_tokens": 2000,
-        "temperature": 0.1,
     }
 
+    # temperature not supported by all models (e.g. Claude Opus 4.7)
+    # Try with it first, retry without on 400
     try:
+        payload["temperature"] = 0.1
         response = _call_serving(payload)
+    except RuntimeError as e:
+        if "temperature" in str(e).lower():
+            logger.info("Retrying without temperature parameter")
+            del payload["temperature"]
+            response = _call_serving(payload)
+        else:
+            raise
+
+    try:
         raw = response["choices"][0]["message"]["content"].strip()
         logger.info(f"FMAPI response: {raw[:300]}")
 
