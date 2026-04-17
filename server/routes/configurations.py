@@ -37,15 +37,44 @@ async def update_config(config_key: str, req: ConfigUpdate):
 
 @router.get("/serving-endpoints")
 async def list_serving_endpoints():
-    """List available serving endpoints for model selection."""
+    """List serving endpoints that support vision (multimodal image input)."""
+    VISION_KEYWORDS = ["multimodal", "image input", "image and text", "vision", "analyze images"]
+
     try:
         w = get_workspace_client()
         endpoints = []
         for ep in w.serving_endpoints.list():
-            endpoints.append({
-                "name": ep.name,
-                "state": ep.state.ready if ep.state else "UNKNOWN",
-            })
+            # Skip non-chat endpoints (embeddings, completions, etc.)
+            task = getattr(ep, "task", "") or ""
+            if task and "chat" not in task:
+                continue
+
+            # Check if foundation model description mentions vision/multimodal
+            is_vision = False
+            display_name = ep.name
+            description = ""
+            if ep.config and ep.config.served_entities:
+                for se in ep.config.served_entities:
+                    fm = getattr(se, "foundation_model", None)
+                    if fm:
+                        display_name = getattr(fm, "display_name", ep.name) or ep.name
+                        description = getattr(fm, "description", "") or ""
+                        desc_lower = description.lower()
+                        if any(kw in desc_lower for kw in VISION_KEYWORDS):
+                            is_vision = True
+
+            # Also include custom (non-foundation-model) endpoints - user may have trained a vision model
+            is_custom = not (ep.config and ep.config.served_entities and
+                            any(getattr(se, "foundation_model", None) for se in ep.config.served_entities))
+
+            if is_vision or is_custom:
+                endpoints.append({
+                    "name": ep.name,
+                    "display_name": display_name,
+                    "state": ep.state.ready if ep.state else "UNKNOWN",
+                    "is_custom": is_custom,
+                    "description": description[:150] if description else "",
+                })
         return endpoints
     except Exception as e:
         logger.warning(f"Could not list serving endpoints: {e}")

@@ -201,16 +201,23 @@ function Settings() {
 
           {modelMode === 'select' && (
             <div className="model-endpoint-list">
-              {servingEndpoints.length === 0 && <div className="empty-state">Carregando endpoints...</div>}
+              {servingEndpoints.length === 0 && <div className="empty-state">Buscando endpoints com suporte a visao...</div>}
               {servingEndpoints.map(ep => (
                 <div key={ep.name} className={`model-endpoint-item ${ep.name === currentModel ? 'selected' : ''}`}
                   onClick={() => saveModel(ep.name)}>
-                  <div className="model-ep-name">
-                    <span className={`model-ep-dot ${ep.state === 'READY' ? 'ready' : ''}`} />
-                    {ep.name}
+                  <div className="model-ep-info">
+                    <div className="model-ep-name">
+                      <span className={`model-ep-dot ${ep.state === 'READY' ? 'ready' : ''}`} />
+                      <strong>{ep.display_name || ep.name}</strong>
+                      {ep.is_custom && <span className="model-ep-custom">CUSTOM</span>}
+                    </div>
+                    <div className="model-ep-endpoint">{ep.name}</div>
+                    {ep.description && <div className="model-ep-desc">{ep.description}</div>}
                   </div>
-                  <div className="model-ep-state">{ep.state}</div>
-                  {ep.name === currentModel && <span className="model-ep-active">ATIVO</span>}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <div className="model-ep-state">{ep.state}</div>
+                    {ep.name === currentModel && <span className="model-ep-active">ATIVO</span>}
+                  </div>
                 </div>
               ))}
             </div>

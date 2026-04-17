@@ -429,13 +429,20 @@ body {
 }
 .model-endpoint-item:hover { border-color: var(--lasa-primary); background: #FFF1F2; }
 .model-endpoint-item.selected { border-color: var(--lasa-primary); background: #FFF1F2; }
-.model-ep-name { flex: 1; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.model-ep-info { flex: 1; min-width: 0; }
+.model-ep-name { font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .model-ep-dot { width: 8px; height: 8px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
 .model-ep-dot.ready { background: #10B981; }
+.model-ep-endpoint { font-size: 11px; color: #999; font-family: monospace; margin-top: 2px; }
+.model-ep-desc { font-size: 11px; color: #777; margin-top: 4px; line-height: 1.4; }
 .model-ep-state { font-size: 11px; color: #888; }
 .model-ep-active {
   font-size: 10px; font-weight: 700; color: var(--lasa-primary);
   background: #FFF1F2; padding: 2px 8px; border-radius: 4px;
+}
+.model-ep-custom {
+  font-size: 9px; font-weight: 700; color: #8B5CF6;
+  background: #F5F3FF; padding: 1px 6px; border-radius: 4px;
 }
 .model-custom { padding: 4px 0; }
 
