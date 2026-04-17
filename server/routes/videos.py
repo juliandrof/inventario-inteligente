@@ -5,7 +5,7 @@ import time
 import logging
 import tempfile
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from server.database import execute_query, execute_update, get_workspace_client
@@ -133,7 +133,7 @@ async def get_video_fixtures(video_id: int):
 
 
 @router.get("/{video_id}/stream")
-async def stream_video(video_id: int):
+async def stream_video(video_id: int, request: Request):
     rows = execute_query("SELECT volume_path, filename FROM videos WHERE video_id = %(vid)s", {"vid": video_id})
     if not rows:
         raise HTTPException(404, "Video not found")
@@ -144,9 +144,29 @@ async def stream_video(video_id: int):
         w = get_workspace_client()
         resp = w.files.download(rows[0]["volume_path"])
         content = resp.contents.read()
+        total = len(content)
+
+        # Support Range requests for seeking
+        range_header = request.headers.get("range")
+        if range_header:
+            range_spec = range_header.replace("bytes=", "")
+            parts = range_spec.split("-")
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if parts[1] else total - 1
+            end = min(end, total - 1)
+            chunk = content[start:end + 1]
+            return Response(
+                content=chunk, status_code=206, media_type=mime,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{total}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(len(chunk)),
+                },
+            )
+
         return Response(content=content, media_type=mime, headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Content-Length": str(len(content)),
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(total),
         })
     except Exception as e:
         raise HTTPException(500, f"Erro ao transmitir video: {e}")
