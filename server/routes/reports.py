@@ -72,7 +72,7 @@ async def export_csv(uf: Optional[str] = None, store_id: Optional[str] = None):
         ])
 
     output.seek(0)
-    filename = f"lasa_expositores{'_' + uf if uf else ''}{'_loja' + store_id if store_id else ''}.csv"
+    filename = f"inventario_expositores{'_' + uf if uf else ''}{'_loja' + store_id if store_id else ''}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -107,7 +107,7 @@ async def export_json(uf: Optional[str] = None, store_id: Optional[str] = None):
             r["video_date"] = str(r["video_date"])
 
     content = json.dumps(rows, ensure_ascii=False, indent=2, default=str)
-    filename = f"lasa_expositores{'_' + uf if uf else ''}.json"
+    filename = f"inventario_expositores{'_' + uf if uf else ''}.json"
     return StreamingResponse(
         iter([content]),
         media_type="application/json",

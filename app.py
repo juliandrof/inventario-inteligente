@@ -1,4 +1,4 @@
-"""LASA Scenic Crawler - Inventario Inteligente de Expositores (Lakebase Edition)."""
+"""Inventario Inteligente de Expositores - Powered by Databricks Lakebase."""
 
 import os
 import logging
@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting LASA Scenic Crawler application...")
+    logger.info("Starting Inventario Inteligente application...")
     await init_db_pool()
     yield
-    logger.info("Shutting down LASA Scenic Crawler application...")
+    logger.info("Shutting down Inventario Inteligente application...")
     await close_db_pool()
 
 
 app = FastAPI(
-    title="LASA Scenic Crawler",
+    title="Inventario Inteligente",
     description="Inventario Inteligente de Expositores - Powered by Databricks Lakebase",
     version="2.0.0",
     lifespan=lifespan,
@@ -64,7 +64,7 @@ if frontend_dist.exists():
 else:
     @app.get("/")
     async def root():
-        return {"message": "LASA Scenic Crawler API - Frontend not built yet"}
+        return {"message": "Inventario Inteligente API - Frontend not built yet"}
 
 
 if __name__ == "__main__":

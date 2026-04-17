@@ -1,4 +1,4 @@
-"""Dashboard analytics routes for LASA Scenic Crawler."""
+"""Dashboard analytics routes."""
 
 from fastapi import APIRouter, Query
 from typing import Optional

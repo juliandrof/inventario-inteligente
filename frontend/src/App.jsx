@@ -61,14 +61,14 @@ function App() {
 
   return (
     <div className="app-layout" style={{
-      '--lasa-primary': colors.primary_color, '--lasa-dark': colors.secondary_color,
-      '--lasa-accent': colors.accent_color, '--lasa-sidebar': colors.sidebar_color,
-      '--lasa-header-bg': colors.header_bg_color,
+      '--app-primary': colors.primary_color, '--app-dark': colors.secondary_color,
+      '--app-accent': colors.accent_color, '--app-sidebar': colors.sidebar_color,
+      '--app-header-bg': colors.header_bg_color,
     }}>
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            {customLogo ? <img src="/api/branding/logo" alt="Logo" className="custom-logo" /> : <LASALogo />}
+            {customLogo ? <img src="/api/branding/logo" alt="Logo" className="custom-logo" /> : <AppLogo />}
           </div>
           <div className="sidebar-subtitle">Inventario Inteligente de Expositores</div>
         </div>
@@ -90,18 +90,17 @@ function App() {
   );
 }
 
-function LASALogo() {
+function AppLogo() {
   return (
     <svg width="180" height="40" viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="5" width="30" height="30" rx="6" fill="var(--lasa-primary, #E11D48)"/>
+      <rect x="2" y="5" width="30" height="30" rx="6" fill="var(--app-primary, #E11D48)"/>
       <rect x="8" y="12" width="18" height="2" rx="0.5" fill="white"/>
       <rect x="8" y="17" width="18" height="2" rx="0.5" fill="white" opacity="0.8"/>
       <rect x="8" y="22" width="18" height="2" rx="0.5" fill="white" opacity="0.6"/>
       <rect x="10" y="12" width="2" height="12" fill="white" opacity="0.4"/>
       <rect x="22" y="12" width="2" height="12" fill="white" opacity="0.4"/>
-      <text x="38" y="16" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" fill="white" opacity="0.7">LASA</text>
-      <text x="38" y="27" fontFamily="Inter, sans-serif" fontSize="10" fontWeight="700" fill="white">Scenic</text>
-      <text x="38" y="37" fontFamily="Inter, sans-serif" fontSize="10" fontWeight="700" fill="white">Crawler</text>
+      <text x="38" y="16" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" fill="white" opacity="0.7">Inventario</text>
+      <text x="38" y="30" fontFamily="Inter, sans-serif" fontSize="11" fontWeight="700" fill="white">Inteligente</text>
     </svg>
   );
 }
