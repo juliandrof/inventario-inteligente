@@ -9,8 +9,9 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from server.database import execute_query, execute_update, get_workspace_client
-from server.video_processor import parse_video_filename, get_video_metadata, ensure_store_exists
+from server.video_processor import parse_video_filename, get_video_metadata, ensure_store_exists, is_image_file
 from server.background_worker import ProcessingWorker
+from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,8 +20,8 @@ VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/scenic_crawler/default/u
 
 
 @router.post("/upload")
-async def upload_video(file: UploadFile = File(...)):
-    """Upload a video. Filename must follow UF_IDLOJA_yyyymmdd.ext"""
+async def upload_media(file: UploadFile = File(...)):
+    """Upload a video or photo. Filename must follow UF_IDLOJA_yyyymmdd.ext"""
     filename = file.filename or "unknown.mp4"
 
     try:
@@ -29,14 +30,15 @@ async def upload_video(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(e))
 
     ensure_store_exists(parsed["store_id"], parsed["uf"])
+    is_photo = is_image_file(filename)
+    ext = os.path.splitext(filename)[1].lower()
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
     try:
         content = await file.read()
         tmp.write(content)
         tmp.close()
 
-        meta = get_video_metadata(tmp.name)
         volume_path = f"{VIDEO_VOLUME}/{filename}"
         try:
             w = get_workspace_client()
@@ -46,26 +48,44 @@ async def upload_video(file: UploadFile = File(...)):
             raise HTTPException(status_code=500, detail=f"Erro ao salvar no Volume: {str(e)}")
 
         video_id = int(time.time() * 1000)
-        execute_update("""
-            INSERT INTO videos
-            (video_id, filename, volume_path, uf, store_id, video_date,
-             file_size_bytes, duration_seconds, fps, resolution, total_frames,
-             upload_timestamp, status)
-            VALUES (%(vid)s, %(name)s, %(path)s, %(uf)s, %(sid)s, %(vd)s,
-                    %(size)s, %(dur)s, %(fps)s, %(res)s, %(tf)s, NOW(), 'PENDING')
-        """, {
-            "vid": video_id, "name": filename, "path": volume_path,
-            "uf": parsed["uf"], "sid": parsed["store_id"], "vd": parsed["video_date"],
-            "size": len(content),
-            "dur": meta.get("duration_seconds", 0), "fps": meta.get("fps", 0),
-            "res": meta.get("resolution", ""), "tf": meta.get("total_frames", 0),
-        })
+
+        if is_photo:
+            img = PILImage.open(tmp.name)
+            resolution = f"{img.width}x{img.height}"
+            execute_update("""
+                INSERT INTO videos
+                (video_id, filename, volume_path, uf, store_id, video_date,
+                 file_size_bytes, duration_seconds, fps, resolution, total_frames,
+                 upload_timestamp, status, media_type)
+                VALUES (%(vid)s, %(name)s, %(path)s, %(uf)s, %(sid)s, %(vd)s,
+                        %(size)s, 0, 0, %(res)s, 1, NOW(), 'PENDING', 'PHOTO')
+            """, {
+                "vid": video_id, "name": filename, "path": volume_path,
+                "uf": parsed["uf"], "sid": parsed["store_id"], "vd": parsed["video_date"],
+                "size": len(content), "res": resolution,
+            })
+        else:
+            meta = get_video_metadata(tmp.name)
+            execute_update("""
+                INSERT INTO videos
+                (video_id, filename, volume_path, uf, store_id, video_date,
+                 file_size_bytes, duration_seconds, fps, resolution, total_frames,
+                 upload_timestamp, status, media_type)
+                VALUES (%(vid)s, %(name)s, %(path)s, %(uf)s, %(sid)s, %(vd)s,
+                        %(size)s, %(dur)s, %(fps)s, %(res)s, %(tf)s, NOW(), 'PENDING', 'VIDEO')
+            """, {
+                "vid": video_id, "name": filename, "path": volume_path,
+                "uf": parsed["uf"], "sid": parsed["store_id"], "vd": parsed["video_date"],
+                "size": len(content),
+                "dur": meta.get("duration_seconds", 0), "fps": meta.get("fps", 0),
+                "res": meta.get("resolution", ""), "tf": meta.get("total_frames", 0),
+            })
 
         worker = ProcessingWorker()
         worker.start_processing(video_id)
 
         return {
-            "video_id": video_id, "filename": filename,
+            "video_id": video_id, "filename": filename, "media_type": "PHOTO" if is_photo else "VIDEO",
             "uf": parsed["uf"], "store_id": parsed["store_id"],
             "video_date": str(parsed["video_date"]), "status": "PROCESSING",
         }
@@ -77,7 +97,8 @@ async def upload_video(file: UploadFile = File(...)):
 @router.get("")
 async def list_videos(
     uf: str = Query(None), store_id: str = Query(None),
-    status: str = Query(None), limit: int = Query(50), offset: int = Query(0),
+    status: str = Query(None), media_type: str = Query(None),
+    limit: int = Query(50), offset: int = Query(0),
 ):
     conditions = []
     params = {"limit": limit, "offset": offset}
@@ -91,6 +112,9 @@ async def list_videos(
     if status:
         conditions.append("v.status = %(status)s")
         params["status"] = status.upper()
+    if media_type:
+        conditions.append("COALESCE(v.media_type, 'VIDEO') = %(mt)s")
+        params["mt"] = media_type.upper()
 
     where = "WHERE " + " AND ".join(conditions) if conditions else ""
 

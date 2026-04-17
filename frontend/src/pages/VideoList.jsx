@@ -16,7 +16,7 @@ function VideoList({ navigate, pageParams }) {
   useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
 
   function loadVideos() {
-    const f = {};
+    const f = { media_type: 'VIDEO' };
     if (selUF) f.uf = selUF;
     if (selStore) f.store_id = selStore;
     if (selStatus) f.status = selStatus;

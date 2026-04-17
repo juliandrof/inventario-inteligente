@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Dashboard from './pages/Dashboard';
-import VideoUpload from './pages/VideoUpload';
+import Upload from './pages/VideoUpload';
 import VideoList from './pages/VideoList';
+import PhotoList from './pages/PhotoList';
 import FixtureView from './pages/FixtureView';
 import Reports from './pages/Reports';
 import Review from './pages/Review';
@@ -10,8 +11,9 @@ import { fetchBranding } from './api';
 
 const PAGE_KEYS = [
   { key: 'dashboard', label: 'Dashboard', icon: 'chart' },
-  { key: 'upload', label: 'Upload Videos', icon: 'upload' },
+  { key: 'upload', label: 'Upload', icon: 'upload' },
   { key: 'videos', label: 'Videos', icon: 'list' },
+  { key: 'photos', label: 'Fotos', icon: 'photo' },
   { key: 'fixtures', label: 'Expositores', icon: 'fixture' },
   { key: 'review', label: 'Revisao IA', icon: 'review' },
   { key: 'reports', label: 'Relatorios', icon: 'report' },
@@ -19,7 +21,7 @@ const PAGE_KEYS = [
 ];
 
 const PAGE_COMPONENTS = {
-  dashboard: Dashboard, upload: VideoUpload, videos: VideoList,
+  dashboard: Dashboard, upload: Upload, videos: VideoList, photos: PhotoList,
   fixtures: FixtureView, review: Review, reports: Reports, settings: Settings,
 };
 
@@ -27,6 +29,7 @@ const ICONS = {
   chart: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="10" width="3" height="8" rx="1" fill="currentColor"/><rect x="7" y="6" width="3" height="12" rx="1" fill="currentColor"/><rect x="12" y="3" width="3" height="15" rx="1" fill="currentColor"/></svg>,
   upload: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 3v10M10 3l-4 4M10 3l4 4M3 14v2a1 1 0 001 1h12a1 1 0 001-1v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   list: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor" opacity="0.8"/><rect x="2" y="8.5" width="16" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="2" y="14" width="16" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>,
+  photo: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="7" cy="8" r="2" fill="currentColor"/><path d="M2 14l4-4 3 3 4-5 5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   fixture: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="9" width="16" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="14" width="16" height="2" rx="0.5" fill="currentColor"/><rect x="3" y="4" width="2" height="12" fill="currentColor" opacity="0.5"/><rect x="15" y="4" width="2" height="12" fill="currentColor" opacity="0.5"/></svg>,
   review: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/><path d="M14 14l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M7 9h4M9 7v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   report: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 2h8l4 4v12a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5"/><path d="M6 10h8M6 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,

@@ -359,6 +359,35 @@ body {
 }
 .ft-color-dot { width: 20px; height: 20px; border-radius: 50%; display: inline-block; }
 .video-type-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.media-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+}
+.media-badge.video { background: #EFF6FF; color: #2563EB; }
+.media-badge.photo { background: #F0FDF4; color: #16A34A; }
+
+/* Photo Grid */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.photo-card {
+  background: white; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: box-shadow 0.2s;
+}
+.photo-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.photo-thumb-area { cursor: pointer; position: relative; }
+.photo-thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.photo-thumb-placeholder {
+  width: 100%; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9;
+}
+.photo-card-body { padding: 12px; }
+
+/* Lightbox */
+.lightbox-content { max-width: 90vw; max-height: 90vh; }
+.lightbox-img { max-width: 90vw; max-height: 80vh; object-fit: contain; border-radius: 12px; display: block; }
+.lightbox-info {
+  display: flex; gap: 12px; align-items: center; justify-content: center;
+  margin-top: 12px; color: white; font-size: 13px;
+}
 
 /* Video Cards Grid */
 .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }

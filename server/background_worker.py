@@ -8,7 +8,7 @@ import tempfile
 from typing import Optional
 
 from server.database import execute_query, execute_update, get_workspace_client
-from server.video_processor import process_video, get_video_metadata, ensure_store_exists, parse_video_filename
+from server.video_processor import process_video, process_photo, get_video_metadata, ensure_store_exists, parse_video_filename, is_image_file
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,11 @@ class ProcessingWorker:
             local_path = self._download_video(w, volume_path)
 
             try:
-                process_video(video_id, local_path)
+                filename = video[0].get("filename", "")
+                if is_image_file(filename):
+                    process_photo(video_id, local_path)
+                else:
+                    process_video(video_id, local_path)
             finally:
                 if os.path.exists(local_path):
                     os.unlink(local_path)

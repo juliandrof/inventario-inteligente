@@ -56,6 +56,15 @@ def parse_video_filename(filename: str) -> dict:
     return {"uf": uf, "store_id": store_id, "video_date": video_date}
 
 
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif'}
+VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
+
+
+def is_image_file(filename: str) -> bool:
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in IMAGE_EXTENSIONS
+
+
 def get_video_metadata(video_path: str) -> dict:
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -407,6 +416,134 @@ def _detect_anomalies(video_id, unique_fixtures, store_id, uf):
 
     except Exception as e:
         logger.warning(f"Anomaly detection error: {e}")
+
+
+def process_photo(video_id: int, local_path: str, progress_callback=None):
+    """Process a single photo for fixture detection. Treated as a 1-frame video."""
+    from PIL import Image as PILImage
+    start_time = time.time()
+
+    confidence_threshold = float(get_config("confidence_threshold", "0.6"))
+
+    logger.info(f"[P{video_id}] Starting photo analysis: {local_path}")
+
+    execute_update("UPDATE videos SET status = 'PROCESSING', progress_pct = 0 WHERE video_id = %(vid)s", {"vid": video_id})
+
+    log_id = int(time.time() * 1000)
+    execute_update(
+        "INSERT INTO processing_log (log_id, video_id, started_at, status) VALUES (%(lid)s, %(vid)s, NOW(), 'RUNNING')",
+        {"lid": log_id, "vid": video_id},
+    )
+
+    try:
+        img = PILImage.open(local_path).convert("RGB")
+    except Exception:
+        _fail_video(video_id, log_id, "Nao foi possivel abrir a imagem")
+        return
+
+    # Resize for FMAPI
+    w, h = img.size
+    if w > 640:
+        ratio = 640 / w
+        img = img.resize((640, int(h * ratio)))
+
+    import io
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=80)
+    jpeg_bytes = buf.getvalue()
+    frame_b64 = base64.b64encode(jpeg_bytes).decode()
+
+    # Save thumbnail
+    thumb = save_thumbnail(video_id, jpeg_bytes, 0.0)
+
+    execute_update("UPDATE videos SET progress_pct = 20 WHERE video_id = %(vid)s", {"vid": video_id})
+    if progress_callback:
+        progress_callback(video_id, 20)
+
+    # Analyze
+    try:
+        detections = analyze_frame_fixtures(frame_b64)
+        logger.info(f"[P{video_id}] Found {len(detections)} fixtures")
+    except Exception as e:
+        logger.error(f"[P{video_id}] Analysis error: {e}")
+        detections = []
+
+    detections = [d for d in detections if d.get("confidence", 0) >= confidence_threshold]
+
+    execute_update("UPDATE videos SET progress_pct = 70 WHERE video_id = %(vid)s", {"vid": video_id})
+
+    # Save detections (each detection = a unique fixture for photos)
+    all_detections = []
+    for i, det in enumerate(detections):
+        det_id = int(time.time() * 1000000) + i
+        pos = det.get("position", {})
+        all_detections.append({
+            "detection_id": det_id, "video_id": video_id,
+            "frame_index": 0, "timestamp_sec": 0.0,
+            "fixture_type": det["type"], "confidence": det["confidence"],
+            "bbox_x": pos.get("x", 50), "bbox_y": pos.get("y", 50),
+            "occupancy_level": det.get("occupancy", "PARCIAL"),
+            "occupancy_pct": det.get("occupancy_pct", 50),
+            "ai_description": det.get("description", ""),
+            "thumbnail_path": thumb, "tracking_id": i + 1,
+        })
+
+    _save_detections(all_detections)
+
+    # For photos, each detection is already unique (1 frame = no dedup needed)
+    video_info = execute_query("SELECT store_id, uf, video_date FROM videos WHERE video_id = %(vid)s", {"vid": video_id})
+    if not video_info:
+        _fail_video(video_id, log_id, "Registro nao encontrado")
+        return
+
+    store_id = video_info[0]["store_id"]
+    uf = video_info[0]["uf"]
+    video_date = video_info[0]["video_date"]
+
+    # Save each detection as a unique fixture
+    for i, det in enumerate(all_detections):
+        fixture_id = int(time.time() * 1000000) + i + 1000
+        execute_update("""
+            INSERT INTO fixtures
+            (fixture_id, video_id, store_id, uf, video_date, fixture_type, tracking_id,
+             first_seen_sec, last_seen_sec, frame_count, avg_confidence,
+             best_thumbnail_path, occupancy_level, occupancy_pct, ai_description, position_zone)
+            VALUES (%(fid)s, %(vid)s, %(sid)s, %(uf)s, %(vd)s, %(ft)s, %(tid)s,
+                    0, 0, 1, %(conf)s, %(thumb)s, %(occ)s, %(occ_pct)s, %(desc)s, %(zone)s)
+        """, {
+            "fid": fixture_id, "vid": video_id, "sid": store_id, "uf": uf,
+            "vd": video_date, "ft": det["fixture_type"], "tid": det["tracking_id"],
+            "conf": det["confidence"], "thumb": thumb,
+            "occ": det["occupancy_level"], "occ_pct": det["occupancy_pct"],
+            "desc": det["ai_description"], "zone": "",
+        })
+
+    # Build tracker-compatible list for summary/anomaly
+    class _FakeTrack:
+        def __init__(self, d):
+            self.fixture_type = d["fixture_type"]
+            self.avg_occupancy_pct = d["occupancy_pct"]
+            self.dominant_occupancy = d["occupancy_level"]
+
+    fake_tracks = [_FakeTrack(d) for d in all_detections]
+    _generate_summary(video_id, fake_tracks, store_id, uf, video_date)
+    _detect_anomalies(video_id, fake_tracks, store_id, uf)
+
+    processing_time = time.time() - start_time
+    execute_update("""
+        UPDATE processing_log SET completed_at = NOW(), status = 'SUCCESS',
+            processing_time_sec = %(t)s, frames_total = 1, frames_analyzed = 1,
+            fixtures_detected = %(fd)s WHERE log_id = %(lid)s
+    """, {"t": processing_time, "fd": len(all_detections), "lid": log_id})
+
+    execute_update(
+        "UPDATE videos SET status = 'COMPLETED', progress_pct = 100, frames_analyzed = 1 WHERE video_id = %(vid)s",
+        {"vid": video_id},
+    )
+    if progress_callback:
+        progress_callback(video_id, 100)
+
+    logger.info(f"[P{video_id}] Done! {len(all_detections)} fixtures in {processing_time:.1f}s")
 
 
 def _fail_video(video_id, log_id, message):

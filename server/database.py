@@ -274,6 +274,12 @@ def _auto_create_tables(conn):
         except Exception as e:
             logger.warning(f"Auto-setup [{label}]: {e}")
 
+    # Ensure media_type column exists
+    try:
+        cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS media_type VARCHAR(10) DEFAULT 'VIDEO'")
+    except Exception as e:
+        logger.warning(f"ALTER media_type: {e}")
+
     # Indexes
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status)",

@@ -21,6 +21,9 @@ function VideoUpload({ navigate }) {
     return null;
   }
 
+  const IMAGE_EXTS = ['jpg','jpeg','png','bmp','webp','tiff','tif'];
+  function isPhoto(name) { return IMAGE_EXTS.includes(name.split('.').pop()?.toLowerCase()); }
+
   function handleFiles(fileList) {
     const arr = Array.from(fileList).map(f => ({
       file: f, name: f.name, size: f.size,
@@ -28,6 +31,7 @@ function VideoUpload({ navigate }) {
       uf: f.name.split('_')[0]?.toUpperCase(),
       store: f.name.split('_')[1],
       date: f.name.split('_')[2]?.split('.')[0],
+      mediaType: isPhoto(f.name) ? 'Foto' : 'Video',
     }));
     setFiles(prev => [...prev, ...arr]);
   }
@@ -56,16 +60,16 @@ function VideoUpload({ navigate }) {
 
   return (
     <div className="page">
-      <div className="page-header"><h1>Upload de Videos</h1></div>
+      <div className="page-header"><h1>Upload</h1></div>
 
       <div className="card">
         <h3>Padrao de Nomenclatura</h3>
         <div className="naming-guide">
-          <code className="naming-pattern">UF_IDLOJA_yyyymmdd.mp4</code>
+          <code className="naming-pattern">UF_IDLOJA_yyyymmdd.ext</code>
           <div className="naming-examples">
             <span className="example">SP_1234_20260415.mp4</span>
-            <span className="example">RJ_5678_20260410.mov</span>
-            <span className="example">MG_0042_20260401.avi</span>
+            <span className="example">RJ_5678_20260410.jpg</span>
+            <span className="example">MG_0042_20260401.png</span>
           </div>
         </div>
       </div>
@@ -78,13 +82,13 @@ function VideoUpload({ navigate }) {
           onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
           onClick={() => fileRef.current?.click()}
         >
-          <input ref={fileRef} type="file" multiple accept="video/*" style={{ display: 'none' }}
+          <input ref={fileRef} type="file" multiple accept="video/*,image/*" style={{ display: 'none' }}
             onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
           <div className="upload-icon">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 8v24M24 8l-8 8M24 8l8 8M8 34v4a2 2 0 002 2h28a2 2 0 002-2v-4" stroke="var(--app-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
-          <p>Arraste videos aqui ou clique para selecionar</p>
-          <p className="upload-hint">Formatos: MP4, AVI, MOV, MKV, WebM</p>
+          <p>Arraste arquivos aqui ou clique para selecionar</p>
+          <p className="upload-hint">Videos: MP4, AVI, MOV, MKV, WebM | Fotos: JPG, PNG, BMP, WebP</p>
         </div>
       </div>
 
@@ -92,11 +96,12 @@ function VideoUpload({ navigate }) {
         <div className="card">
           <h3>Arquivos Selecionados ({files.length})</h3>
           <table className="data-table">
-            <thead><tr><th>Arquivo</th><th>UF</th><th>Loja</th><th>Data</th><th>Tamanho</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Arquivo</th><th>Tipo</th><th>UF</th><th>Loja</th><th>Data</th><th>Tamanho</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {files.map((f, i) => (
                 <tr key={i} className={f.error ? 'row-error' : ''}>
                   <td className="filename">{f.name}</td>
+                  <td><span className={`media-badge ${f.mediaType === 'Foto' ? 'photo' : 'video'}`}>{f.mediaType}</span></td>
                   <td>{f.uf && <span className="uf-badge">{f.uf}</span>}</td>
                   <td>{f.store || '-'}</td>
                   <td>{f.date ? `${f.date.substring(0,4)}-${f.date.substring(4,6)}-${f.date.substring(6,8)}` : '-'}</td>
