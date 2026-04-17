@@ -179,20 +179,6 @@ function VideoList({ navigate, pageParams }) {
       </div>
 
       {videos.length === 0 && <div className="card"><div className="empty-state">Nenhum video encontrado</div></div>}
-
-      {/* Fullscreen player modal */}
-      {playingVideo && (
-        <div className="modal-overlay" onClick={() => setPlayingVideo(null)} style={{ cursor: 'pointer' }}>
-          <div style={{ width: '80vw', maxWidth: 960 }} onClick={e => e.stopPropagation()}>
-            <video
-              className="video-player-modal"
-              src={`/api/videos/${playingVideo}/stream`}
-              controls autoPlay
-              style={{ width: '100%', borderRadius: 12 }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
