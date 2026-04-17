@@ -176,14 +176,14 @@ def process_video(video_id: int, local_path: str, progress_callback=None):
             # Filter by confidence
             detections = [d for d in detections if d.get("confidence", 0) >= confidence_threshold]
 
-            # Feed to tracker
-            tracker.process_frame(detections, frame_idx, timestamp)
+            # Feed to tracker and get tracking_id mapping
+            det_to_track = tracker.process_frame(detections, frame_idx, timestamp)
 
             # Save frame thumbnail (every analyzed frame gets one for review)
             frame_thumb = save_thumbnail(video_id, jpeg_bytes, timestamp)
 
-            # Save raw detections with frame thumbnail
-            for det in detections:
+            # Save raw detections with frame thumbnail and tracking_id
+            for di, det in enumerate(detections):
                 det_id = int(time.time() * 1000000) + len(all_detections)
                 pos = det.get("position", {})
                 all_detections.append({
@@ -199,6 +199,7 @@ def process_video(video_id: int, local_path: str, progress_callback=None):
                     "occupancy_pct": det.get("occupancy_pct", 50),
                     "ai_description": det.get("description", ""),
                     "thumbnail_path": frame_thumb,
+                    "tracking_id": det_to_track.get(di),
                 })
 
             # Also track best thumbnail per unique fixture
@@ -273,10 +274,10 @@ def _save_detections(all_detections):
             INSERT INTO detections
             (detection_id, video_id, frame_index, timestamp_sec, fixture_type,
              confidence, bbox_x, bbox_y, thumbnail_path, ai_description,
-             occupancy_level, occupancy_pct)
+             occupancy_level, occupancy_pct, tracking_id)
             VALUES (%(did)s, %(vid)s, %(fi)s, %(ts)s, %(ft)s,
                     %(conf)s, %(bx)s, %(by)s, %(thumb)s, %(desc)s,
-                    %(occ)s, %(occ_pct)s)
+                    %(occ)s, %(occ_pct)s, %(tid)s)
         """, {
             "did": det["detection_id"], "vid": det["video_id"],
             "fi": det["frame_index"], "ts": det["timestamp_sec"],
@@ -286,6 +287,7 @@ def _save_detections(all_detections):
             "desc": det.get("ai_description", ""),
             "occ": det.get("occupancy_level", "PARCIAL"),
             "occ_pct": det.get("occupancy_pct", 50),
+            "tid": det.get("tracking_id"),
         })
 
 

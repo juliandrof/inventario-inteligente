@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchConfigs, updateConfig, fetchBranding, updateBranding, uploadLogo, clearAllData } from '../api';
+import { fetchConfigs, updateConfig, fetchBranding, updateBranding, uploadLogo, clearAllData, fetchConfigFixtureTypes, createFixtureType, updateFixtureType, deleteFixtureType } from '../api';
 
 function Settings() {
   const [configs, setConfigs] = useState([]);
@@ -7,34 +7,67 @@ function Settings() {
   const [editKey, setEditKey] = useState(null);
   const [editVal, setEditVal] = useState('');
   const [msg, setMsg] = useState('');
+  const [fixtureTypes, setFixtureTypes] = useState([]);
+  const [editFT, setEditFT] = useState(null);
+  const [newFT, setNewFT] = useState({ name: '', display_name: '', description: '', color: '#666666' });
+  const [showAddFT, setShowAddFT] = useState(false);
 
   useEffect(() => {
     fetchConfigs().then(setConfigs).catch(() => {});
     fetchBranding().then(setBranding).catch(() => {});
+    fetchConfigFixtureTypes().then(setFixtureTypes).catch(() => {});
   }, []);
 
   async function saveConfig(key) {
     await updateConfig(key, editVal);
     setConfigs(c => c.map(x => x.config_key === key ? { ...x, config_value: editVal } : x));
     setEditKey(null);
-    setMsg(`Configuracao "${key}" atualizada!`);
-    setTimeout(() => setMsg(''), 3000);
+    flash(`Configuracao "${key}" atualizada!`);
   }
 
   async function saveBranding(key, val) {
     await updateBranding(key, val);
     setBranding(b => ({ ...b, [key]: val }));
-    setMsg('Branding atualizado!');
-    setTimeout(() => setMsg(''), 3000);
+    flash('Branding atualizado!');
   }
 
   async function handleLogo(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     await uploadLogo(file);
-    setMsg('Logo atualizado!');
-    setTimeout(() => setMsg(''), 3000);
+    flash('Logo atualizado!');
   }
+
+  async function handleAddFT() {
+    if (!newFT.name || !newFT.display_name) return;
+    try {
+      await createFixtureType(newFT);
+      const updated = await fetchConfigFixtureTypes();
+      setFixtureTypes(updated);
+      setNewFT({ name: '', display_name: '', description: '', color: '#666666' });
+      setShowAddFT(false);
+      flash(`Tipo "${newFT.name}" criado!`);
+    } catch (e) { flash(`Erro: ${e.message}`); }
+  }
+
+  async function handleUpdateFT(name) {
+    try {
+      await updateFixtureType(name, editFT);
+      const updated = await fetchConfigFixtureTypes();
+      setFixtureTypes(updated);
+      setEditFT(null);
+      flash(`Tipo "${name}" atualizado!`);
+    } catch (e) { flash(`Erro: ${e.message}`); }
+  }
+
+  async function handleDeleteFT(name) {
+    if (!confirm(`Excluir o tipo "${name}"? Isso nao apaga expositores ja detectados.`)) return;
+    await deleteFixtureType(name);
+    setFixtureTypes(ft => ft.filter(t => t.name !== name));
+    flash(`Tipo "${name}" excluido!`);
+  }
+
+  function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 4000); }
 
   const CONFIG_LABELS = {
     scan_fps: 'Frames/segundo para analise',
@@ -50,6 +83,78 @@ function Settings() {
 
       {msg && <div className="toast">{msg}</div>}
 
+      {/* Fixture Types */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0 }}>Tipos de Expositores</h3>
+          <button className="btn btn-primary" onClick={() => setShowAddFT(!showAddFT)}>
+            {showAddFT ? 'Cancelar' : '+ Novo Tipo'}
+          </button>
+        </div>
+
+        {showAddFT && (
+          <div className="ft-add-row">
+            <input className="inline-input" placeholder="NOME (ex: VITRINE)" value={newFT.name}
+              onChange={e => setNewFT({ ...newFT, name: e.target.value.toUpperCase().replace(/\s/g, '_') })} />
+            <input className="inline-input" placeholder="Nome exibicao" value={newFT.display_name}
+              onChange={e => setNewFT({ ...newFT, display_name: e.target.value })} />
+            <input className="inline-input" placeholder="Descricao para a IA" value={newFT.description}
+              onChange={e => setNewFT({ ...newFT, description: e.target.value })} style={{ flex: 2 }} />
+            <input type="color" value={newFT.color} onChange={e => setNewFT({ ...newFT, color: e.target.value })} />
+            <button className="btn btn-sm btn-primary" onClick={handleAddFT}>Salvar</button>
+          </div>
+        )}
+
+        <table className="data-table">
+          <thead><tr><th>Cor</th><th>Codigo</th><th>Nome Exibicao</th><th>Descricao (usada no prompt IA)</th><th></th></tr></thead>
+          <tbody>
+            {fixtureTypes.map(ft => {
+              const isEditing = editFT && editFT._name === ft.name;
+              return (
+                <tr key={ft.name}>
+                  <td>
+                    {isEditing ? (
+                      <input type="color" value={editFT.color || '#666'} onChange={e => setEditFT({ ...editFT, color: e.target.value })} />
+                    ) : (
+                      <span className="ft-color-dot" style={{ background: ft.color || '#666' }} />
+                    )}
+                  </td>
+                  <td><code>{ft.name}</code></td>
+                  <td>
+                    {isEditing ? (
+                      <input className="inline-input" value={editFT.display_name} onChange={e => setEditFT({ ...editFT, display_name: e.target.value })} />
+                    ) : ft.display_name}
+                  </td>
+                  <td>
+                    {isEditing ? (
+                      <input className="inline-input" value={editFT.description || ''} style={{ width: '100%' }}
+                        onChange={e => setEditFT({ ...editFT, description: e.target.value })} />
+                    ) : <span className="desc-cell">{ft.description || '-'}</span>}
+                  </td>
+                  <td>
+                    {isEditing ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-sm btn-primary" onClick={() => handleUpdateFT(ft.name)}>Salvar</button>
+                        <button className="btn btn-sm" onClick={() => setEditFT(null)}>Cancelar</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-sm" onClick={() => setEditFT({ _name: ft.name, name: ft.name, display_name: ft.display_name, description: ft.description || '', color: ft.color || '#666' })}>Editar</button>
+                        <button className="btn btn-sm btn-danger" onClick={() => handleDeleteFT(ft.name)}>Excluir</button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ fontSize: 11, color: '#999', marginTop: 12 }}>
+          A descricao de cada tipo e enviada ao modelo de IA para orientar a deteccao. Seja especifico.
+        </p>
+      </div>
+
+      {/* Analysis Config */}
       <div className="card">
         <h3>Parametros de Analise</h3>
         <table className="data-table">
@@ -62,9 +167,7 @@ function Settings() {
                   {editKey === c.config_key ? (
                     <input className="inline-input" value={editVal} onChange={e => setEditVal(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && saveConfig(c.config_key)} />
-                  ) : (
-                    <code>{c.config_value}</code>
-                  )}
+                  ) : <code>{c.config_value}</code>}
                 </td>
                 <td className="desc-cell">{c.description || '-'}</td>
                 <td>
@@ -83,6 +186,7 @@ function Settings() {
         </table>
       </div>
 
+      {/* Branding */}
       <div className="card">
         <h3>Branding</h3>
         <div className="branding-grid">
@@ -100,11 +204,13 @@ function Settings() {
           </label>
         </div>
       </div>
+
+      {/* Danger Zone */}
       <div className="card" style={{ borderTop: '3px solid #EF4444' }}>
         <h3>Zona de Perigo</h3>
         <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
           Apagar todos os dados de analise: videos, expositores, deteccoes, anomalias e lojas.
-          As configuracoes e branding serao mantidos.
+          As configuracoes, branding e tipos de expositores serao mantidos.
         </p>
         <button className="btn btn-danger" style={{ padding: '10px 24px', fontSize: 14 }}
           onClick={async () => {
@@ -112,11 +218,8 @@ function Settings() {
             if (!confirm('ULTIMA CONFIRMACAO: Esta acao e irreversivel. Continuar?')) return;
             try {
               const res = await clearAllData();
-              setMsg(`Base limpa! ${JSON.stringify(res.deleted)}`);
-              setTimeout(() => setMsg(''), 5000);
-            } catch (e) {
-              setMsg(`Erro: ${e.message}`);
-            }
+              flash(`Base limpa!`);
+            } catch (e) { flash(`Erro: ${e.message}`); }
           }}>
           Limpar toda a base
         </button>

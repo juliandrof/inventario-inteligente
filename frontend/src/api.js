@@ -51,7 +51,14 @@ export const fetchFixtureTypes = () => request('/analysis/fixture-types');
 
 // Review
 export const fetchReviewVideos = (f = {}) => request('/review/videos' + qs(f));
-export const fetchReviewFrames = (videoId) => request(`/review/frames/${videoId}`);
+export const fetchReviewFixtures = (videoId) => request(`/review/fixtures/${videoId}`);
+export const fetchFixtureFrames = (videoId, trackingId) => request(`/review/fixture-frames/${videoId}/${trackingId}`);
+
+// Fixture Types CRUD
+export const fetchConfigFixtureTypes = () => request('/config/fixture-types');
+export const createFixtureType = (data) => request('/config/fixture-types', { method: 'POST', body: JSON.stringify(data) });
+export const updateFixtureType = (name, data) => request(`/config/fixture-types/${name}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteFixtureType = (name) => request(`/config/fixture-types/${name}`, { method: 'DELETE' });
 
 // Reports
 export const fetchReportSummary = (f = {}) => request('/reports/summary' + qs(f));

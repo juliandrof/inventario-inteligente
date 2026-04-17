@@ -93,13 +93,11 @@ class FixtureTracker:
         self.tracked_fixtures: list[TrackedFixture] = []
         self._next_id = 1
 
-    def process_frame(self, detections: list[dict], frame_index: int, timestamp_sec: float):
+    def process_frame(self, detections: list[dict], frame_index: int, timestamp_sec: float) -> dict[int, int]:
         """Process detections from a single frame.
 
-        Args:
-            detections: list of fixture detections from FMAPI
-            frame_index: current frame number
-            timestamp_sec: timestamp in seconds
+        Returns:
+            mapping of detection_index -> tracking_id
         """
         # Increment frames_since_last_seen for all active tracks
         for tf in self.tracked_fixtures:
@@ -108,6 +106,7 @@ class FixtureTracker:
         # Match detections to existing tracks
         matched_track_ids = set()
         matched_det_ids = set()
+        det_to_track = {}
 
         # Build distance matrix: only consider same-type pairs
         candidates = []
@@ -123,7 +122,6 @@ class FixtureTracker:
         for dist, di, ti in candidates:
             if di in matched_det_ids or ti in matched_track_ids:
                 continue
-            # Match!
             det = detections[di]
             tf = self.tracked_fixtures[ti]
             tf.update(
@@ -137,6 +135,7 @@ class FixtureTracker:
             )
             matched_track_ids.add(ti)
             matched_det_ids.add(di)
+            det_to_track[di] = tf.tracking_id
 
         # Create new tracks for unmatched detections
         for di, det in enumerate(detections):
@@ -155,7 +154,10 @@ class FixtureTracker:
                 timestamp_sec=timestamp_sec,
             )
             self.tracked_fixtures.append(tf)
+            det_to_track[di] = self._next_id
             self._next_id += 1
+
+        return det_to_track
 
     def get_unique_fixtures(self, min_frames: int = 1) -> list[TrackedFixture]:
         """Get deduplicated fixture list.

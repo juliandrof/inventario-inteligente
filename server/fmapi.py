@@ -12,10 +12,26 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = os.environ.get("FMAPI_MODEL", "databricks-llama-4-maverick")
 
-FIXTURE_TYPES = [
+_DEFAULT_FIXTURE_TYPES = [
     "ARARA", "GONDOLA", "CESTAO", "PRATELEIRA", "BALCAO",
     "DISPLAY", "CHECKOUT", "MANEQUIM", "MESA", "CABIDEIRO_PAREDE",
 ]
+
+
+def get_fixture_types() -> list[dict]:
+    """Load fixture types from DB, fallback to defaults."""
+    try:
+        from server.database import execute_query
+        rows = execute_query("SELECT name, description FROM fixture_types ORDER BY name")
+        if rows:
+            return rows
+    except Exception:
+        pass
+    return [{"name": t, "description": ""} for t in _DEFAULT_FIXTURE_TYPES]
+
+
+def get_fixture_type_names() -> list[str]:
+    return [ft["name"] for ft in get_fixture_types()]
 
 
 def _get_model() -> str:
@@ -73,7 +89,14 @@ def analyze_frame_fixtures(frame_b64: str) -> list[dict]:
       "occupancy": "FULL", "occupancy_pct": 85, "confidence": 0.9,
       "description": "Gondola de produtos de limpeza"}]
     """
-    types_str = ", ".join(FIXTURE_TYPES)
+    fixture_types = get_fixture_types()
+    type_names = [ft["name"] for ft in fixture_types]
+    types_str = ", ".join(type_names)
+
+    # Build descriptions block from DB
+    type_descriptions = "\n".join(
+        f"- {ft['name']}: {ft['description']}" for ft in fixture_types if ft.get("description")
+    )
 
     system_prompt = (
         "Voce e um especialista em analise de layout de lojas de varejo. "
@@ -86,16 +109,7 @@ def analyze_frame_fixtures(frame_b64: str) -> list[dict]:
 Tipos validos: {types_str}
 
 Descricao dos tipos:
-- ARARA: Arara de roupas (cabideiro circular ou reto para pendurar pecas)
-- GONDOLA: Gondola/estante expositora com multiplas prateleiras (modulo independente)
-- CESTAO: Cestao/cesto grande aberto para produtos a granel ou promocoes
-- PRATELEIRA: Prateleira de parede (modulo fixo na parede)
-- BALCAO: Balcao de atendimento ou vitrine de vidro
-- DISPLAY: Display promocional, ponta de gondola, ilha promocional
-- CHECKOUT: Caixa registradora / checkout
-- MANEQUIM: Manequim de vitrine ou exposicao
-- MESA: Mesa para exposicao de produtos dobrados
-- CABIDEIRO_PAREDE: Cabideiro fixo na parede com ganchos/barras
+{type_descriptions}
 
 Para CADA expositor encontrado, retorne:
 - "type": tipo do expositor (da lista acima)
@@ -150,7 +164,7 @@ Retorne um array JSON. Exemplo:
             if not isinstance(f, dict):
                 continue
             ftype = str(f.get("type", "")).upper().strip()
-            if ftype not in FIXTURE_TYPES:
+            if ftype not in type_names:
                 continue
 
             pos = f.get("position", {})
