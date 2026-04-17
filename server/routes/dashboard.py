@@ -169,7 +169,11 @@ async def recent_videos(uf: Optional[str] = None, store_id: Optional[str] = None
 @router.get("/filters")
 async def get_filters():
     """Get available UFs and stores for filter dropdowns."""
-    ufs = execute_query("SELECT DISTINCT uf FROM stores ORDER BY uf")
-    stores = execute_query("SELECT store_id, uf, name FROM stores ORDER BY uf, store_id")
+    ufs = execute_query("SELECT DISTINCT uf FROM videos ORDER BY uf")
+    stores = execute_query("""
+        SELECT DISTINCT v.store_id, v.uf, s.name
+        FROM videos v LEFT JOIN stores s ON v.store_id = s.store_id
+        ORDER BY v.uf, v.store_id
+    """)
     fixture_types = execute_query("SELECT name, display_name, color FROM fixture_types ORDER BY name")
     return {"ufs": [r["uf"] for r in ufs], "stores": stores, "fixture_types": fixture_types}
