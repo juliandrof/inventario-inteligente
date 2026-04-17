@@ -78,7 +78,18 @@ function VideoList({ navigate, pageParams }) {
                   <td>{v.video_date}</td>
                   <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
                   <td><StatusBadge status={v.status} pct={v.progress_pct} /></td>
-                  <td><strong>{v.fixture_count || 0}</strong></td>
+                  <td>
+                    <div className="video-type-tags">
+                      {v.type_counts && Object.entries(v.type_counts).map(([type, count]) => (
+                        <span key={type} className="det-tag" style={{ background: TYPE_COLORS[type] || '#666' }}>
+                          {count}x {type}
+                        </span>
+                      ))}
+                      {(!v.type_counts || Object.keys(v.type_counts).length === 0) && (
+                        <span>{v.fixture_count || 0}</span>
+                      )}
+                    </div>
+                  </td>
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {v.status === 'COMPLETED' && (

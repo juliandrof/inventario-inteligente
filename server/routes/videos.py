@@ -96,7 +96,10 @@ async def list_videos(
 
     videos = execute_query(f"""
         SELECT v.*, s.name as store_name,
-            (SELECT COUNT(*) FROM fixtures f WHERE f.video_id = v.video_id) as fixture_count
+            (SELECT COUNT(*) FROM fixtures f WHERE f.video_id = v.video_id) as fixture_count,
+            (SELECT jsonb_object_agg(sq.fixture_type, sq.cnt)
+             FROM (SELECT fixture_type, COUNT(*) as cnt FROM fixtures WHERE video_id = v.video_id GROUP BY fixture_type) sq
+            ) as type_counts
         FROM videos v LEFT JOIN stores s ON v.store_id = s.store_id
         {where} ORDER BY v.upload_timestamp DESC
         LIMIT %(limit)s OFFSET %(offset)s

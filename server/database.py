@@ -346,6 +346,17 @@ def _auto_create_tables(conn):
     except Exception as e:
         logger.warning(f"Seed branding: {e}")
 
+    # Ensure fmapi_model config exists
+    try:
+        cur.execute("SELECT 1 FROM configurations WHERE config_key = 'fmapi_model'")
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO configurations (config_id, config_key, config_value, description, updated_at)
+                VALUES (%(id)s, 'fmapi_model', 'databricks-llama-4-maverick', 'Serving endpoint do modelo de visao (pode ser custom)', NOW())
+            """, {"id": int(time.time() * 1000) + 6})
+    except Exception as e:
+        logger.warning(f"Seed fmapi_model: {e}")
+
     # Ensure header_bg_color exists
     try:
         cur.execute("SELECT 1 FROM branding WHERE setting_key = 'header_bg_color'")

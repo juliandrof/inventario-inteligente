@@ -70,6 +70,7 @@ function Settings() {
   function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 4000); }
 
   const CONFIG_LABELS = {
+    fmapi_model: 'Modelo de Visao (serving endpoint)',
     scan_fps: 'Frames/segundo para analise',
     confidence_threshold: 'Confianca minima (0-1)',
     dedup_position_threshold: 'Distancia dedup (%)',

@@ -358,6 +358,7 @@ body {
   background: #f8fafc; border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap;
 }
 .ft-color-dot { width: 20px; height: 20px; border-radius: 50%; display: inline-block; }
+.video-type-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 
 /* Responsive */
 @media (max-width: 768px) {
