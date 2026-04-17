@@ -69,6 +69,7 @@ class ProcessingWorker:
         return list(self._jobs.values())
 
     def _run(self, job_id: int, video_id: int):
+        import traceback
         try:
             video = execute_query("SELECT * FROM videos WHERE video_id = %(vid)s", {"vid": video_id})
             if not video:
@@ -85,11 +86,15 @@ class ProcessingWorker:
                     os.unlink(local_path)
 
         except Exception as e:
-            logger.error(f"Processing job {job_id} failed: {e}")
-            execute_update(
-                "UPDATE videos SET status = 'FAILED', error_message = %(msg)s WHERE video_id = %(vid)s",
-                {"vid": video_id, "msg": str(e)[:500]},
-            )
+            tb = traceback.format_exc()
+            logger.error(f"Processing job {job_id} failed: {e}\n{tb}")
+            try:
+                execute_update(
+                    "UPDATE videos SET status = 'FAILED', error_message = %(msg)s WHERE video_id = %(vid)s",
+                    {"vid": video_id, "msg": str(e)[:500]},
+                )
+            except Exception:
+                pass
 
     def _run_batch(self, batch_id: int, volume_path: str, user: str):
         batch = self._jobs[batch_id]

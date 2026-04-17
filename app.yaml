@@ -31,7 +31,71 @@ env:
   - name: THUMBNAIL_VOLUME
     value: "/Volumes/jsf_demo_catalog/scenic_crawler/thumbnails"
 resources:
-  - name: serving-endpoint
+  - name: llama-4-maverick
     serving_endpoint:
       name: databricks-llama-4-maverick
+      permission: CAN_QUERY
+  - name: claude-opus-4-1
+    serving_endpoint:
+      name: databricks-claude-opus-4-1
+      permission: CAN_QUERY
+  - name: claude-opus-4-5
+    serving_endpoint:
+      name: databricks-claude-opus-4-5
+      permission: CAN_QUERY
+  - name: claude-opus-4-6
+    serving_endpoint:
+      name: databricks-claude-opus-4-6
+      permission: CAN_QUERY
+  - name: claude-opus-4-7
+    serving_endpoint:
+      name: databricks-claude-opus-4-7
+      permission: CAN_QUERY
+  - name: claude-sonnet-4
+    serving_endpoint:
+      name: databricks-claude-sonnet-4
+      permission: CAN_QUERY
+  - name: claude-sonnet-4-5
+    serving_endpoint:
+      name: databricks-claude-sonnet-4-5
+      permission: CAN_QUERY
+  - name: claude-sonnet-4-6
+    serving_endpoint:
+      name: databricks-claude-sonnet-4-6
+      permission: CAN_QUERY
+  - name: gpt-5
+    serving_endpoint:
+      name: databricks-gpt-5
+      permission: CAN_QUERY
+  - name: gpt-5-1
+    serving_endpoint:
+      name: databricks-gpt-5-1
+      permission: CAN_QUERY
+  - name: gpt-5-2
+    serving_endpoint:
+      name: databricks-gpt-5-2
+      permission: CAN_QUERY
+  - name: gpt-5-4
+    serving_endpoint:
+      name: databricks-gpt-5-4
+      permission: CAN_QUERY
+  - name: gpt-5-mini
+    serving_endpoint:
+      name: databricks-gpt-5-mini
+      permission: CAN_QUERY
+  - name: gpt-5-nano
+    serving_endpoint:
+      name: databricks-gpt-5-nano
+      permission: CAN_QUERY
+  - name: gemini-2-5-flash
+    serving_endpoint:
+      name: databricks-gemini-2-5-flash
+      permission: CAN_QUERY
+  - name: gemini-2-5-pro
+    serving_endpoint:
+      name: databricks-gemini-2-5-pro
+      permission: CAN_QUERY
+  - name: gemma-3-12b
+    serving_endpoint:
+      name: databricks-gemma-3-12b
       permission: CAN_QUERY
