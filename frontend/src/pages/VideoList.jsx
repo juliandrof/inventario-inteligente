@@ -15,13 +15,23 @@ function VideoList({ navigate, pageParams }) {
 
   useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
 
-  useEffect(() => {
+  function loadVideos() {
     const f = {};
     if (selUF) f.uf = selUF;
     if (selStore) f.store_id = selStore;
     if (selStatus) f.status = selStatus;
     fetchVideos(f).then(d => { setVideos(d.videos || []); setTotal(d.total || 0); }).catch(() => {});
-  }, [selUF, selStore, selStatus]);
+  }
+
+  useEffect(() => { loadVideos(); }, [selUF, selStore, selStatus]);
+
+  // Auto-refresh while any video is processing
+  useEffect(() => {
+    const hasProcessing = videos.some(v => v.status === 'PROCESSING' || v.status === 'PENDING');
+    if (!hasProcessing) return;
+    const t = setInterval(loadVideos, 3000);
+    return () => clearInterval(t);
+  }, [videos, selUF, selStore, selStatus]);
 
   useEffect(() => {
     if (!expanded) { setFixtures(null); return; }
