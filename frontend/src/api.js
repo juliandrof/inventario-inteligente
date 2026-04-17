@@ -70,6 +70,7 @@ export const updateConfig = (key, value, description) => request(`/config/${key}
   method: 'PUT', body: JSON.stringify({ value, description }),
 });
 export const clearAllData = () => request('/config/clear-all', { method: 'POST' });
+export const fetchServingEndpoints = () => request('/config/serving-endpoints');
 
 // Branding
 export const fetchBranding = () => request('/branding');

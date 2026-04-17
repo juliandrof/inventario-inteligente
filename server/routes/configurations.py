@@ -1,11 +1,13 @@
 """Configuration management routes."""
 
 import time
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from server.database import execute_query, execute_update
+from server.database import execute_query, execute_update, get_workspace_client
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -31,6 +33,23 @@ async def update_config(config_key: str, req: ConfigUpdate):
             "INSERT INTO configurations (config_id, config_key, config_value, description, updated_at) VALUES (%(id)s, %(key)s, %(val)s, %(desc)s, NOW())",
             {"id": int(time.time() * 1000), "key": config_key, "val": req.value, "desc": req.description})
     return {"config_key": config_key, "updated": True}
+
+
+@router.get("/serving-endpoints")
+async def list_serving_endpoints():
+    """List available serving endpoints for model selection."""
+    try:
+        w = get_workspace_client()
+        endpoints = []
+        for ep in w.serving_endpoints.list():
+            endpoints.append({
+                "name": ep.name,
+                "state": ep.state.ready if ep.state else "UNKNOWN",
+            })
+        return endpoints
+    except Exception as e:
+        logger.warning(f"Could not list serving endpoints: {e}")
+        return []
 
 
 class FixtureTypeCreate(BaseModel):

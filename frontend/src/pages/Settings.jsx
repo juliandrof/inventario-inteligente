@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { fetchConfigs, updateConfig, fetchBranding, updateBranding, uploadLogo, clearAllData, fetchConfigFixtureTypes, createFixtureType, updateFixtureType, deleteFixtureType } from '../api';
+import { fetchConfigs, updateConfig, fetchBranding, updateBranding, uploadLogo, clearAllData, fetchConfigFixtureTypes, createFixtureType, updateFixtureType, deleteFixtureType, fetchServingEndpoints } from '../api';
+
+const CONFIG_HELP = {
+  fmapi_model: 'O nome do Serving Endpoint que sera usado para analisar os frames do video. Pode ser um modelo padrao da Databricks (ex: databricks-llama-4-maverick) ou um modelo treinado por voce e publicado como endpoint.',
+  scan_fps: 'Quantos frames por segundo serao extraidos do video para analise. Exemplo: 0.5 = 1 frame a cada 2 segundos. Valores maiores dao mais precisao mas custam mais tokens.',
+  confidence_threshold: 'Nivel minimo de certeza (0 a 1) para considerar uma deteccao valida. Se a IA detectar um expositor com confianca abaixo desse valor, ele sera ignorado. Valor recomendado: 0.5 a 0.7.',
+  dedup_position_threshold: 'Distancia maxima (em % do frame) para considerar que duas deteccoes em frames diferentes sao o mesmo expositor. Valores menores = mais sensivel (pode contar duplicado). Valores maiores = mais agressivo na dedup.',
+  anomaly_std_threshold: 'Quantos desvios padrao acima ou abaixo da media da UF para gerar um alerta de anomalia. Exemplo: 1.5 = alerta se a loja tiver 1.5x mais ou menos expositores que a media.',
+  timezone: 'Fuso horario usado para datas e horarios no sistema.',
+};
 
 function Settings() {
   const [configs, setConfigs] = useState([]);
@@ -11,18 +20,31 @@ function Settings() {
   const [editFT, setEditFT] = useState(null);
   const [newFT, setNewFT] = useState({ name: '', display_name: '', description: '', color: '#666666' });
   const [showAddFT, setShowAddFT] = useState(false);
+  const [servingEndpoints, setServingEndpoints] = useState([]);
+  const [modelMode, setModelMode] = useState('select'); // 'select' or 'custom'
+  const [customModel, setCustomModel] = useState('');
+  const [showHelp, setShowHelp] = useState(null);
 
   useEffect(() => {
     fetchConfigs().then(setConfigs).catch(() => {});
     fetchBranding().then(setBranding).catch(() => {});
     fetchConfigFixtureTypes().then(setFixtureTypes).catch(() => {});
+    fetchServingEndpoints().then(setServingEndpoints).catch(() => {});
   }, []);
+
+  const currentModel = configs.find(c => c.config_key === 'fmapi_model')?.config_value || '';
 
   async function saveConfig(key) {
     await updateConfig(key, editVal);
     setConfigs(c => c.map(x => x.config_key === key ? { ...x, config_value: editVal } : x));
     setEditKey(null);
     flash(`Configuracao "${key}" atualizada!`);
+  }
+
+  async function saveModel(value) {
+    await updateConfig('fmapi_model', value);
+    setConfigs(c => c.map(x => x.config_key === 'fmapi_model' ? { ...x, config_value: value } : x));
+    flash(`Modelo atualizado para "${value}"`);
   }
 
   async function saveBranding(key, val) {
@@ -61,7 +83,7 @@ function Settings() {
   }
 
   async function handleDeleteFT(name) {
-    if (!confirm(`Excluir o tipo "${name}"? Isso nao apaga expositores ja detectados.`)) return;
+    if (!confirm(`Excluir o tipo "${name}"?`)) return;
     await deleteFixtureType(name);
     setFixtureTypes(ft => ft.filter(t => t.name !== name));
     flash(`Tipo "${name}" excluido!`);
@@ -70,13 +92,16 @@ function Settings() {
   function flash(m) { setMsg(m); setTimeout(() => setMsg(''), 4000); }
 
   const CONFIG_LABELS = {
-    fmapi_model: 'Modelo de Visao (serving endpoint)',
+    fmapi_model: 'Modelo de Visao',
     scan_fps: 'Frames/segundo para analise',
     confidence_threshold: 'Confianca minima (0-1)',
     dedup_position_threshold: 'Distancia dedup (%)',
     anomaly_std_threshold: 'Desvios padrao para anomalia',
     timezone: 'Timezone',
   };
+
+  // Separate model config from other configs
+  const otherConfigs = configs.filter(c => c.config_key !== 'fmapi_model');
 
   return (
     <div className="page">
@@ -155,15 +180,78 @@ function Settings() {
         </p>
       </div>
 
+      {/* Model Selection */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <h3 style={{ margin: 0 }}>Modelo de Visao (IA)</h3>
+          <InfoIcon text={CONFIG_HELP.fmapi_model} show={showHelp === 'model'} onToggle={() => setShowHelp(showHelp === 'model' ? null : 'model')} />
+        </div>
+        <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+          Modelo atual: <code style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 4 }}>{currentModel || 'nao definido'}</code>
+        </p>
+        <div className="model-selector">
+          <div className="model-tabs">
+            <button className={`tab ${modelMode === 'select' ? 'active' : ''}`} onClick={() => setModelMode('select')}>
+              Endpoints Disponiveis
+            </button>
+            <button className={`tab ${modelMode === 'custom' ? 'active' : ''}`} onClick={() => setModelMode('custom')}>
+              Modelo Personalizado
+            </button>
+          </div>
+
+          {modelMode === 'select' && (
+            <div className="model-endpoint-list">
+              {servingEndpoints.length === 0 && <div className="empty-state">Carregando endpoints...</div>}
+              {servingEndpoints.map(ep => (
+                <div key={ep.name} className={`model-endpoint-item ${ep.name === currentModel ? 'selected' : ''}`}
+                  onClick={() => saveModel(ep.name)}>
+                  <div className="model-ep-name">
+                    <span className={`model-ep-dot ${ep.state === 'READY' ? 'ready' : ''}`} />
+                    {ep.name}
+                  </div>
+                  <div className="model-ep-state">{ep.state}</div>
+                  {ep.name === currentModel && <span className="model-ep-active">ATIVO</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {modelMode === 'custom' && (
+            <div className="model-custom">
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
+                Digite o nome do serving endpoint do seu modelo treinado:
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="inline-input" style={{ flex: 1, fontSize: 14 }}
+                  placeholder="ex: meu-modelo-fixture-v2"
+                  value={customModel} onChange={e => setCustomModel(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && customModel && saveModel(customModel)} />
+                <button className="btn btn-primary" disabled={!customModel} onClick={() => { saveModel(customModel); setCustomModel(''); }}>
+                  Salvar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Analysis Config */}
       <div className="card">
         <h3>Parametros de Analise</h3>
         <table className="data-table">
           <thead><tr><th>Parametro</th><th>Valor</th><th>Descricao</th><th></th></tr></thead>
           <tbody>
-            {configs.map(c => (
+            {otherConfigs.map(c => (
               <tr key={c.config_key}>
-                <td><strong>{CONFIG_LABELS[c.config_key] || c.config_key}</strong></td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <strong>{CONFIG_LABELS[c.config_key] || c.config_key}</strong>
+                    {CONFIG_HELP[c.config_key] && (
+                      <InfoIcon text={CONFIG_HELP[c.config_key]} show={showHelp === c.config_key}
+                        onToggle={() => setShowHelp(showHelp === c.config_key ? null : c.config_key)} />
+                    )}
+                  </div>
+                </td>
                 <td>
                   {editKey === c.config_key ? (
                     <input className="inline-input" value={editVal} onChange={e => setEditVal(e.target.value)}
@@ -210,17 +298,13 @@ function Settings() {
       <div className="card" style={{ borderTop: '3px solid #EF4444' }}>
         <h3>Zona de Perigo</h3>
         <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
-          Apagar todos os dados de analise: videos, expositores, deteccoes, anomalias e lojas.
-          As configuracoes, branding e tipos de expositores serao mantidos.
+          Apagar todos os dados de analise. Configuracoes, branding e tipos serao mantidos.
         </p>
         <button className="btn btn-danger" style={{ padding: '10px 24px', fontSize: 14 }}
           onClick={async () => {
-            if (!confirm('Tem certeza? Todos os videos, expositores e deteccoes serao apagados permanentemente.')) return;
-            if (!confirm('ULTIMA CONFIRMACAO: Esta acao e irreversivel. Continuar?')) return;
-            try {
-              const res = await clearAllData();
-              flash(`Base limpa!`);
-            } catch (e) { flash(`Erro: ${e.message}`); }
+            if (!confirm('Tem certeza? Acao irreversivel.')) return;
+            if (!confirm('ULTIMA CONFIRMACAO: Continuar?')) return;
+            try { await clearAllData(); flash('Base limpa!'); } catch (e) { flash(`Erro: ${e.message}`); }
           }}>
           Limpar toda a base
         </button>
@@ -228,5 +312,16 @@ function Settings() {
     </div>
   );
 }
+
+
+function InfoIcon({ text, show, onToggle }) {
+  return (
+    <span className="info-icon-wrapper">
+      <span className="info-icon" onClick={onToggle} onMouseEnter={onToggle} onMouseLeave={() => show && onToggle()}>i</span>
+      {show && <div className="info-tooltip">{text}</div>}
+    </span>
+  );
+}
+
 
 export default Settings;

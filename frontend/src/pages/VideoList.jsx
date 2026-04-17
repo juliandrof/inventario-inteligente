@@ -11,6 +11,7 @@ function VideoList({ navigate, pageParams }) {
   const [selStatus, setSelStatus] = useState('');
   const [expanded, setExpanded] = useState(null);
   const [fixtures, setFixtures] = useState(null);
+  const [playingVideo, setPlayingVideo] = useState(null);
 
   useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
 
@@ -63,76 +64,125 @@ function VideoList({ navigate, pageParams }) {
         </div>
       </div>
 
-      <div className="card">
-        <table className="data-table">
-          <thead>
-            <tr><th>Arquivo</th><th>UF</th><th>Loja</th><th>Data Video</th><th>Duracao</th><th>Status</th><th>Expositores</th><th>Acoes</th></tr>
-          </thead>
-          <tbody>
-            {videos.map(v => (
-              <React.Fragment key={v.video_id}>
-                <tr className="clickable" onClick={() => setExpanded(expanded === v.video_id ? null : v.video_id)}>
-                  <td className="filename">{v.filename}</td>
-                  <td><span className="uf-badge">{v.uf}</span></td>
-                  <td>{v.store_id}</td>
-                  <td>{v.video_date}</td>
-                  <td>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : '-'}</td>
-                  <td><StatusBadge status={v.status} pct={v.progress_pct} /></td>
-                  <td>
-                    <div className="video-type-tags">
-                      {v.type_counts && Object.entries(v.type_counts).map(([type, count]) => (
-                        <span key={type} className="det-tag" style={{ background: TYPE_COLORS[type] || '#666' }}>
-                          {count}x {type}
-                        </span>
-                      ))}
-                      {(!v.type_counts || Object.keys(v.type_counts).length === 0) && (
-                        <span>{v.fixture_count || 0}</span>
-                      )}
+      <div className="video-card-grid">
+        {videos.map(v => (
+          <div key={v.video_id} className="video-card">
+            {/* Thumbnail / Player */}
+            <div className="video-thumb-area">
+              {playingVideo === v.video_id ? (
+                <video
+                  className="video-player"
+                  src={`/api/videos/${v.video_id}/stream`}
+                  controls autoPlay
+                  onEnded={() => setPlayingVideo(null)}
+                />
+              ) : (
+                <div className="video-thumb-placeholder" onClick={() => v.status === 'COMPLETED' && setPlayingVideo(v.video_id)}>
+                  <div className="video-thumb-bg">
+                    <span className="video-thumb-icon">{v.uf}</span>
+                    <span className="video-thumb-store">Loja {v.store_id}</span>
+                  </div>
+                  {v.status === 'COMPLETED' && (
+                    <div className="video-play-btn">
+                      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                        <circle cx="20" cy="20" r="20" fill="rgba(0,0,0,0.5)"/>
+                        <path d="M16 12l12 8-12 8V12z" fill="white"/>
+                      </svg>
                     </div>
-                  </td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {v.status === 'COMPLETED' && (
-                        <button className="btn btn-sm" onClick={() => handleReprocess(v.video_id)}>Reprocessar</button>
-                      )}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(v.video_id)}>Excluir</button>
-                    </div>
-                  </td>
-                </tr>
-                {expanded === v.video_id && fixtures && (
-                  <tr>
-                    <td colSpan={8}>
-                      <div className="expanded-fixtures">
-                        <h4>Expositores Detectados</h4>
-                        {fixtures.summary?.length > 0 ? (
-                          <div className="fixture-summary-grid">
-                            {fixtures.summary.map(s => (
-                              <div key={s.fixture_type} className="fixture-summary-card">
-                                <div className="fixture-type-dot" style={{ background: TYPE_COLORS[s.fixture_type] || '#666' }} />
-                                <div>
-                                  <strong>{s.fixture_type}</strong>
-                                  <div>{s.total_count} unidades</div>
-                                  <div className="fixture-occ">
-                                    Ocupacao: {Math.round(s.avg_occupancy_pct || 0)}%
-                                    <small> (V:{s.empty_count} P:{s.partial_count} C:{s.full_count})</small>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="empty-state">Nenhum expositor detectado</div>
-                        )}
+                  )}
+                  {v.status === 'PROCESSING' && (
+                    <div className="video-processing-overlay">
+                      <div className="video-progress-bar">
+                        <div className="video-progress-fill" style={{ width: `${v.progress_pct || 0}%` }} />
                       </div>
-                    </td>
-                  </tr>
+                      <span>{Math.round(v.progress_pct || 0)}%</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="video-card-body">
+              <div className="video-card-title">{v.filename}</div>
+              <div className="video-card-meta">
+                <span className="uf-badge">{v.uf}</span>
+                <span>{v.video_date}</span>
+                <span>{v.duration_seconds ? `${Math.round(v.duration_seconds)}s` : ''}</span>
+                <StatusBadge status={v.status} pct={v.progress_pct} />
+              </div>
+
+              {/* Fixture Tags */}
+              <div className="video-type-tags" style={{ marginTop: 8 }}>
+                {v.type_counts && Object.entries(v.type_counts).map(([type, count]) => (
+                  <span key={type} className="det-tag" style={{ background: TYPE_COLORS[type] || '#666' }}>
+                    {count}x {type}
+                  </span>
+                ))}
+                {(!v.type_counts || Object.keys(v.type_counts).length === 0) && v.fixture_count > 0 && (
+                  <span className="det-tag" style={{ background: '#666' }}>{v.fixture_count} expositores</span>
                 )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-        {videos.length === 0 && <div className="empty-state">Nenhum video encontrado</div>}
+              </div>
+
+              {/* Expand details */}
+              {v.status === 'COMPLETED' && (
+                <button className="btn btn-sm" style={{ marginTop: 8, width: '100%' }}
+                  onClick={() => setExpanded(expanded === v.video_id ? null : v.video_id)}>
+                  {expanded === v.video_id ? 'Recolher' : 'Ver detalhes'}
+                </button>
+              )}
+
+              {expanded === v.video_id && fixtures && (
+                <div className="expanded-fixtures" style={{ marginTop: 10 }}>
+                  {fixtures.summary?.length > 0 ? (
+                    <div className="fixture-summary-grid">
+                      {fixtures.summary.map(s => (
+                        <div key={s.fixture_type} className="fixture-summary-card">
+                          <div className="fixture-type-dot" style={{ background: TYPE_COLORS[s.fixture_type] || '#666' }} />
+                          <div>
+                            <strong>{s.fixture_type}</strong>
+                            <div>{s.total_count} unidades</div>
+                            <div className="fixture-occ">
+                              Occ: {Math.round(s.avg_occupancy_pct || 0)}%
+                              <small> (V:{s.empty_count} P:{s.partial_count} C:{s.full_count})</small>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">Nenhum expositor</div>
+                  )}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="video-card-actions">
+                {v.status === 'COMPLETED' && (
+                  <button className="btn btn-sm" onClick={() => handleReprocess(v.video_id)}>Reprocessar</button>
+                )}
+                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(v.video_id)}>Excluir</button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {videos.length === 0 && <div className="card"><div className="empty-state">Nenhum video encontrado</div></div>}
+
+      {/* Fullscreen player modal */}
+      {playingVideo && (
+        <div className="modal-overlay" onClick={() => setPlayingVideo(null)} style={{ cursor: 'pointer' }}>
+          <div style={{ width: '80vw', maxWidth: 960 }} onClick={e => e.stopPropagation()}>
+            <video
+              className="video-player-modal"
+              src={`/api/videos/${playingVideo}/stream`}
+              controls autoPlay
+              style={{ width: '100%', borderRadius: 12 }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
