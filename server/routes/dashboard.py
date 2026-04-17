@@ -1,4 +1,4 @@
-"""Dashboard analytics routes with context and date filters."""
+"""Dashboard analytics routes for LASA Scenic Crawler."""
 
 from fastapi import APIRouter, Query
 from typing import Optional
@@ -7,102 +7,169 @@ from server.database import execute_query
 router = APIRouter()
 
 
-def _build_where(context_name: Optional[str], upload_from: Optional[str], upload_to: Optional[str]):
-    """Build WHERE conditions and params for video-based filters."""
-    conds = []
-    params = {}
-    if context_name:
-        conds.append("v.context_name = %(ctx)s")
-        params["ctx"] = context_name
-    if upload_from:
-        conds.append("v.upload_timestamp >= %(uf)s::timestamp")
-        params["uf"] = upload_from
-    if upload_to:
-        conds.append("v.upload_timestamp <= %(ut)s::timestamp + interval '1 day'")
-        params["ut"] = upload_to
-    return (" AND " + " AND ".join(conds)) if conds else "", params
-
-
 @router.get("/summary")
-async def summary(
-    context_name: Optional[str] = None,
-    upload_from: Optional[str] = None,
-    upload_to: Optional[str] = None,
-):
-    where_v, params = _build_where(context_name, upload_from, upload_to)
-    # For detection queries, join through videos
-    det_join = f"FROM detections d JOIN videos v ON d.video_id = v.video_id WHERE 1=1 {where_v}"
-    ar_join = f"FROM analysis_results ar JOIN videos v ON ar.video_id = v.video_id WHERE 1=1 {where_v}"
-    v_where = f"FROM videos v WHERE 1=1 {where_v}"
+async def summary(uf: Optional[str] = None, store_id: Optional[str] = None):
+    conds_v, conds_f, params = [], [], {}
+    if uf:
+        conds_v.append("v.uf = %(uf)s")
+        conds_f.append("f.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    if store_id:
+        conds_v.append("v.store_id = %(sid)s")
+        conds_f.append("f.store_id = %(sid)s")
+        params["sid"] = store_id
 
-    videos = execute_query(f"SELECT COUNT(*) as cnt {v_where}", params)
-    completed = execute_query(f"SELECT COUNT(*) as cnt {v_where} AND v.status = 'COMPLETED'", params)
-    detections = execute_query(f"SELECT COUNT(*) as cnt {det_join}", params)
-    pending = execute_query(f"SELECT COUNT(*) as cnt {det_join} AND d.review_status = 'PENDING'", params)
-    confirmed = execute_query(f"SELECT COUNT(*) as cnt {det_join} AND d.review_status = 'CONFIRMED'", params)
-    rejected = execute_query(f"SELECT COUNT(*) as cnt {det_join} AND d.review_status = 'REJECTED'", params)
-    avg_risk = execute_query(f"SELECT COALESCE(AVG(ar.overall_risk), 0) as avg_risk {ar_join}", params)
+    wv = (" AND " + " AND ".join(conds_v)) if conds_v else ""
+    wf = (" AND " + " AND ".join(conds_f)) if conds_f else ""
+
+    videos = execute_query(f"SELECT COUNT(*) as cnt FROM videos v WHERE 1=1 {wv}", params)
+    completed = execute_query(f"SELECT COUNT(*) as cnt FROM videos v WHERE v.status='COMPLETED' {wv}", params)
+    processing = execute_query(f"SELECT COUNT(*) as cnt FROM videos v WHERE v.status='PROCESSING' {wv}", params)
+    total_fixtures = execute_query(f"SELECT COUNT(*) as cnt FROM fixtures f WHERE 1=1 {wf}", params)
+    stores = execute_query(f"SELECT COUNT(DISTINCT f.store_id) as cnt FROM fixtures f WHERE 1=1 {wf}", params)
+    ufs = execute_query(f"SELECT COUNT(DISTINCT f.uf) as cnt FROM fixtures f WHERE 1=1 {wf}", params)
+    avg_occ = execute_query(f"SELECT COALESCE(AVG(f.occupancy_pct),0) as avg FROM fixtures f WHERE 1=1 {wf}", params)
+    anomalies = execute_query(f"""
+        SELECT COUNT(*) as cnt FROM anomalies a WHERE a.resolved = FALSE
+        {(' AND a.uf = %(uf)s' if uf else '') + (' AND a.store_id = %(sid)s' if store_id else '')}
+    """, params)
 
     return {
-        "total_videos": videos[0]["cnt"] if videos else 0,
-        "completed_videos": completed[0]["cnt"] if completed else 0,
-        "total_detections": detections[0]["cnt"] if detections else 0,
-        "pending_reviews": pending[0]["cnt"] if pending else 0,
-        "confirmed_detections": confirmed[0]["cnt"] if confirmed else 0,
-        "rejected_detections": rejected[0]["cnt"] if rejected else 0,
-        "avg_risk_score": round(float(avg_risk[0]["avg_risk"]), 1) if avg_risk else 0,
+        "total_videos": videos[0]["cnt"],
+        "completed_videos": completed[0]["cnt"],
+        "processing_videos": processing[0]["cnt"],
+        "total_fixtures": total_fixtures[0]["cnt"],
+        "total_stores": stores[0]["cnt"],
+        "total_ufs": ufs[0]["cnt"],
+        "avg_occupancy": round(float(avg_occ[0]["avg"]), 1),
+        "active_anomalies": anomalies[0]["cnt"],
     }
 
 
-@router.get("/by-category")
-async def detections_by_category(
-    context_name: Optional[str] = None,
-    upload_from: Optional[str] = None,
-    upload_to: Optional[str] = None,
-):
-    where_v, params = _build_where(context_name, upload_from, upload_to)
+@router.get("/by-type")
+async def fixtures_by_type(uf: Optional[str] = None, store_id: Optional[str] = None):
+    conds, params = [], {}
+    if uf:
+        conds.append("f.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    if store_id:
+        conds.append("f.store_id = %(sid)s")
+        params["sid"] = store_id
+    w = (" AND " + " AND ".join(conds)) if conds else ""
+
     return execute_query(f"""
-        SELECT d.category, COUNT(*) as cnt, AVG(d.score) as avg_score
-        FROM detections d JOIN videos v ON d.video_id = v.video_id
-        WHERE 1=1 {where_v}
-        GROUP BY d.category ORDER BY cnt DESC
+        SELECT f.fixture_type, COUNT(*) as total,
+            ROUND(AVG(f.occupancy_pct)::numeric, 1) as avg_occupancy,
+            SUM(CASE WHEN f.occupancy_level='VAZIO' THEN 1 ELSE 0 END) as empty_count,
+            SUM(CASE WHEN f.occupancy_level='PARCIAL' THEN 1 ELSE 0 END) as partial_count,
+            SUM(CASE WHEN f.occupancy_level='CHEIO' THEN 1 ELSE 0 END) as full_count
+        FROM fixtures f WHERE 1=1 {w}
+        GROUP BY f.fixture_type ORDER BY total DESC
     """, params)
 
 
-@router.get("/recent")
-async def recent_videos(
-    context_name: Optional[str] = None,
-    upload_from: Optional[str] = None,
-    upload_to: Optional[str] = None,
-):
-    where_v, params = _build_where(context_name, upload_from, upload_to)
+@router.get("/by-uf")
+async def fixtures_by_uf():
+    return execute_query("""
+        SELECT f.uf, COUNT(*) as total, COUNT(DISTINCT f.store_id) as store_count,
+            ROUND(AVG(f.occupancy_pct)::numeric, 1) as avg_occupancy
+        FROM fixtures f GROUP BY f.uf ORDER BY total DESC
+    """)
+
+
+@router.get("/by-store")
+async def fixtures_by_store(uf: Optional[str] = None, limit: int = Query(20)):
+    conds, params = [], {"limit": limit}
+    if uf:
+        conds.append("f.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    w = (" AND " + " AND ".join(conds)) if conds else ""
+
     return execute_query(f"""
-        SELECT v.video_id, v.filename, v.status, v.progress_pct,
-               v.upload_timestamp, v.duration_seconds, v.context_name, v.context_color,
-               ar.overall_risk, ar.total_detections
-        FROM videos v LEFT JOIN analysis_results ar ON v.video_id = ar.video_id
-        WHERE 1=1 {where_v}
+        SELECT f.store_id, f.uf, s.name as store_name,
+            COUNT(*) as total_fixtures,
+            ROUND(AVG(f.occupancy_pct)::numeric, 1) as avg_occupancy
+        FROM fixtures f LEFT JOIN stores s ON f.store_id = s.store_id
+        WHERE 1=1 {w}
+        GROUP BY f.store_id, f.uf, s.name
+        ORDER BY total_fixtures DESC LIMIT %(limit)s
+    """, params)
+
+
+@router.get("/occupancy")
+async def occupancy_overview(uf: Optional[str] = None, store_id: Optional[str] = None):
+    conds, params = [], {}
+    if uf:
+        conds.append("f.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    if store_id:
+        conds.append("f.store_id = %(sid)s")
+        params["sid"] = store_id
+    w = (" AND " + " AND ".join(conds)) if conds else ""
+
+    return execute_query(f"""
+        SELECT f.fixture_type, f.occupancy_level, COUNT(*) as cnt
+        FROM fixtures f WHERE 1=1 {w}
+        GROUP BY f.fixture_type, f.occupancy_level
+        ORDER BY f.fixture_type, f.occupancy_level
+    """, params)
+
+
+@router.get("/anomalies")
+async def list_anomalies(uf: Optional[str] = None, store_id: Optional[str] = None, resolved: bool = False):
+    conds, params = ["a.resolved = %(resolved)s"], {"resolved": resolved}
+    if uf:
+        conds.append("a.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    if store_id:
+        conds.append("a.store_id = %(sid)s")
+        params["sid"] = store_id
+
+    return execute_query(f"""
+        SELECT a.*, s.name as store_name
+        FROM anomalies a LEFT JOIN stores s ON a.store_id = s.store_id
+        WHERE {' AND '.join(conds)}
+        ORDER BY a.created_at DESC LIMIT 50
+    """, params)
+
+
+@router.get("/temporal")
+async def temporal_comparison(store_id: str):
+    """Compare fixture counts across different video dates for a store."""
+    return execute_query("""
+        SELECT fs.video_date, fs.fixture_type, fs.total_count, fs.avg_occupancy_pct
+        FROM fixture_summary fs
+        WHERE fs.store_id = %(sid)s
+        ORDER BY fs.video_date, fs.fixture_type
+    """, {"sid": store_id})
+
+
+@router.get("/recent")
+async def recent_videos(uf: Optional[str] = None, store_id: Optional[str] = None):
+    conds, params = [], {}
+    if uf:
+        conds.append("v.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    if store_id:
+        conds.append("v.store_id = %(sid)s")
+        params["sid"] = store_id
+    w = (" AND " + " AND ".join(conds)) if conds else ""
+
+    return execute_query(f"""
+        SELECT v.video_id, v.filename, v.uf, v.store_id, v.video_date,
+            v.status, v.progress_pct, v.upload_timestamp, v.duration_seconds,
+            (SELECT COUNT(*) FROM fixtures f WHERE f.video_id = v.video_id) as fixture_count,
+            s.name as store_name
+        FROM videos v LEFT JOIN stores s ON v.store_id = s.store_id
+        WHERE 1=1 {w}
         ORDER BY v.upload_timestamp DESC LIMIT 20
     """, params)
 
 
-@router.get("/risk-distribution")
-async def risk_distribution(
-    context_name: Optional[str] = None,
-    upload_from: Optional[str] = None,
-    upload_to: Optional[str] = None,
-):
-    where_v, params = _build_where(context_name, upload_from, upload_to)
-    return execute_query(f"""
-        SELECT
-            CASE
-                WHEN d.score <= 3 THEN 'Baixo (0-3)'
-                WHEN d.score <= 6 THEN 'Medio (4-6)'
-                WHEN d.score <= 8 THEN 'Alto (7-8)'
-                ELSE 'Critico (9-10)'
-            END as risk_level,
-            COUNT(*) as cnt
-        FROM detections d JOIN videos v ON d.video_id = v.video_id
-        WHERE 1=1 {where_v}
-        GROUP BY 1 ORDER BY 1
-    """, params)
+@router.get("/filters")
+async def get_filters():
+    """Get available UFs and stores for filter dropdowns."""
+    ufs = execute_query("SELECT DISTINCT uf FROM stores ORDER BY uf")
+    stores = execute_query("SELECT store_id, uf, name FROM stores ORDER BY uf, store_id")
+    fixture_types = execute_query("SELECT name, display_name, color FROM fixture_types ORDER BY name")
+    return {"ufs": [r["uf"] for r in ufs], "stores": stores, "fixture_types": fixture_types}

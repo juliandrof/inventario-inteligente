@@ -1,131 +1,132 @@
 """Video upload and management routes."""
 
 import os
-import json
-import threading
-import tempfile
 import time
 import logging
+import tempfile
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import Response
+
 from server.database import execute_query, execute_update, get_workspace_client
+from server.video_processor import parse_video_filename, get_video_metadata, ensure_store_exists
+from server.background_worker import ProcessingWorker
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/dbxsc_ai/main/uploaded_videos")
-
-
-def _get_config() -> dict:
-    try:
-        rows = execute_query("SELECT config_key, config_value FROM configurations")
-        cfg = {r["config_key"]: r["config_value"] for r in rows}
-        return {
-            "categories": json.loads(cfg.get("detection_categories", '["fadiga", "distracao"]')),
-            "scan_prompt": cfg.get("scan_prompt", "Analyze this truck driver image for signs of fatigue and distraction."),
-            "detail_prompt": cfg.get("detail_prompt", "Analyze this truck driver image in detail for safety concerns."),
-            "scan_fps": float(cfg.get("scan_fps", "0.2")),
-            "detail_fps": float(cfg.get("detail_fps", "1.0")),
-            "score_threshold": int(cfg.get("score_threshold", "4")),
-        }
-    except Exception:
-        return {
-            "categories": ["fadiga", "distracao"],
-            "scan_prompt": "Analyze this truck driver image for signs of fatigue and distraction.",
-            "detail_prompt": "Analyze this truck driver image in detail for safety concerns.",
-            "scan_fps": 0.2, "detail_fps": 1.0, "score_threshold": 4,
-        }
-
-
-def _get_context_config(context_id: int) -> dict:
-    """Load config from a specific context."""
-    rows = execute_query("SELECT * FROM contexts WHERE context_id = %(id)s", {"id": context_id})
-    if rows:
-        ctx = rows[0]
-        return {
-            "categories": json.loads(ctx["categories"]) if isinstance(ctx["categories"], str) else ctx["categories"],
-            "scan_prompt": ctx["scan_prompt"],
-            "scan_fps": ctx.get("scan_fps", 0.2),
-            "detail_fps": ctx.get("detail_fps", 1.0),
-            "score_threshold": ctx.get("score_threshold", 4),
-        }
-    return _get_config()
+VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/scenic_crawler/default/uploaded_videos")
 
 
 @router.post("/upload")
-async def upload_video(file: UploadFile = File(...), context_id: int = 0):
-    if not file.filename:
-        raise HTTPException(400, "No file provided")
-    allowed = ('.mp4', '.avi', '.mov', '.mkv', '.webm')
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed:
-        raise HTTPException(400, f"Invalid format. Allowed: {', '.join(allowed)}")
+async def upload_video(file: UploadFile = File(...)):
+    """Upload a video. Filename must follow UF_IDLOJA_yyyymmdd.ext"""
+    filename = file.filename or "unknown.mp4"
 
-    # Get context name and color
-    ctx_name = None
-    ctx_color = None
-    if context_id:
-        ctx_rows = execute_query("SELECT name, color FROM contexts WHERE context_id = %(id)s", {"id": context_id})
-        if ctx_rows:
-            ctx_name = ctx_rows[0]["name"]
-            ctx_color = ctx_rows[0].get("color")
-
-    tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
-    content = await file.read()
-    tmp.write(content)
-    tmp.close()
-
-    volume_path = f"{VIDEO_VOLUME}/{file.filename}"
     try:
-        w = get_workspace_client()
-        with open(tmp.name, "rb") as f:
-            w.files.upload(volume_path, f, overwrite=True)
-    except Exception as e:
-        os.unlink(tmp.name)
-        raise HTTPException(500, f"Failed to upload to volume: {e}")
+        parsed = parse_video_filename(filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    from server.video_processor import get_video_metadata, process_video
-    meta = get_video_metadata(tmp.name)
-    video_id = int(time.time() * 1000)
+    ensure_store_exists(parsed["store_id"], parsed["uf"])
 
-    execute_update("""
-        INSERT INTO videos (video_id, filename, volume_path, file_size_bytes, duration_seconds,
-            fps, resolution, upload_timestamp, status, source, context_id, context_name, context_color)
-        VALUES (%(vid)s, %(name)s, %(path)s, %(size)s, %(dur)s, %(fps)s, %(res)s, NOW(), 'PENDING', 'UPLOAD', %(cid)s, %(cname)s, %(ccolor)s)
-    """, {
-        "vid": video_id, "name": file.filename, "path": volume_path,
-        "size": len(content), "dur": meta.get("duration_seconds", 0),
-        "fps": meta.get("fps", 0), "res": meta.get("resolution", ""),
-        "cid": context_id or None, "cname": ctx_name, "ccolor": ctx_color,
-    })
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    try:
+        content = await file.read()
+        tmp.write(content)
+        tmp.close()
 
-    config = _get_context_config(context_id) if context_id else _get_config()
-    thread = threading.Thread(target=process_video, args=(video_id, tmp.name, config), daemon=True)
-    thread.start()
-    return {"video_id": video_id, "filename": file.filename, "status": "PENDING"}
+        meta = get_video_metadata(tmp.name)
+        volume_path = f"{VIDEO_VOLUME}/{filename}"
+        try:
+            w = get_workspace_client()
+            with open(tmp.name, "rb") as fh:
+                w.files.upload(volume_path, fh, overwrite=True)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro ao salvar no Volume: {str(e)}")
+
+        video_id = int(time.time() * 1000)
+        execute_update("""
+            INSERT INTO videos
+            (video_id, filename, volume_path, uf, store_id, video_date,
+             file_size_bytes, duration_seconds, fps, resolution, total_frames,
+             upload_timestamp, status)
+            VALUES (%(vid)s, %(name)s, %(path)s, %(uf)s, %(sid)s, %(vd)s,
+                    %(size)s, %(dur)s, %(fps)s, %(res)s, %(tf)s, NOW(), 'PENDING')
+        """, {
+            "vid": video_id, "name": filename, "path": volume_path,
+            "uf": parsed["uf"], "sid": parsed["store_id"], "vd": parsed["video_date"],
+            "size": len(content),
+            "dur": meta.get("duration_seconds", 0), "fps": meta.get("fps", 0),
+            "res": meta.get("resolution", ""), "tf": meta.get("total_frames", 0),
+        })
+
+        worker = ProcessingWorker()
+        worker.start_processing(video_id)
+
+        return {
+            "video_id": video_id, "filename": filename,
+            "uf": parsed["uf"], "store_id": parsed["store_id"],
+            "video_date": str(parsed["video_date"]), "status": "PROCESSING",
+        }
+    finally:
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
 
 
 @router.get("")
-async def list_videos():
-    return execute_query("""
-        SELECT v.*, ar.scores_json, ar.overall_risk, ar.total_detections
-        FROM videos v LEFT JOIN analysis_results ar ON v.video_id = ar.video_id
-        ORDER BY v.upload_timestamp DESC
-    """)
+async def list_videos(
+    uf: str = Query(None), store_id: str = Query(None),
+    status: str = Query(None), limit: int = Query(50), offset: int = Query(0),
+):
+    conditions = []
+    params = {"limit": limit, "offset": offset}
+
+    if uf:
+        conditions.append("v.uf = %(uf)s")
+        params["uf"] = uf.upper()
+    if store_id:
+        conditions.append("v.store_id = %(sid)s")
+        params["sid"] = store_id
+    if status:
+        conditions.append("v.status = %(status)s")
+        params["status"] = status.upper()
+
+    where = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+    videos = execute_query(f"""
+        SELECT v.*, s.name as store_name,
+            (SELECT COUNT(*) FROM fixtures f WHERE f.video_id = v.video_id) as fixture_count
+        FROM videos v LEFT JOIN stores s ON v.store_id = s.store_id
+        {where} ORDER BY v.upload_timestamp DESC
+        LIMIT %(limit)s OFFSET %(offset)s
+    """, params)
+
+    total = execute_query(f"SELECT COUNT(*) as cnt FROM videos v {where}", params)
+    return {"videos": videos, "total": total[0]["cnt"] if total else 0}
 
 
 @router.get("/{video_id}")
 async def get_video(video_id: int):
     rows = execute_query("""
-        SELECT v.*, ar.scores_json, ar.overall_risk, ar.total_detections,
-               ar.result_id, ar.analysis_timestamp, ar.config_snapshot
-        FROM videos v LEFT JOIN analysis_results ar ON v.video_id = ar.video_id
+        SELECT v.*, s.name as store_name
+        FROM videos v LEFT JOIN stores s ON v.store_id = s.store_id
         WHERE v.video_id = %(vid)s
     """, {"vid": video_id})
     if not rows:
-        raise HTTPException(404, "Video not found")
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
     return rows[0]
+
+
+@router.get("/{video_id}/fixtures")
+async def get_video_fixtures(video_id: int):
+    fixtures = execute_query(
+        "SELECT * FROM fixtures WHERE video_id = %(vid)s ORDER BY fixture_type, tracking_id",
+        {"vid": video_id})
+    summary = execute_query(
+        "SELECT * FROM fixture_summary WHERE video_id = %(vid)s ORDER BY fixture_type",
+        {"vid": video_id})
+    return {"fixtures": fixtures, "summary": summary}
 
 
 @router.get("/{video_id}/stream")
@@ -135,23 +136,55 @@ async def stream_video(video_id: int):
         raise HTTPException(404, "Video not found")
     filename = rows[0]["filename"]
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "mp4"
-    mime = {"mp4": "video/mp4", "webm": "video/webm", "avi": "video/x-msvideo", "mov": "video/quicktime"}.get(ext, "video/mp4")
+    mime = {"mp4": "video/mp4", "webm": "video/webm", "avi": "video/x-msvideo"}.get(ext, "video/mp4")
     try:
         w = get_workspace_client()
         resp = w.files.download(rows[0]["volume_path"])
         content = resp.contents.read()
         return Response(content=content, media_type=mime, headers={
             "Content-Disposition": f'inline; filename="{filename}"',
-            "Accept-Ranges": "bytes", "Content-Length": str(len(content)),
+            "Content-Length": str(len(content)),
         })
     except Exception as e:
-        raise HTTPException(500, f"Failed to stream video: {e}")
+        raise HTTPException(500, f"Erro ao transmitir video: {e}")
 
 
 @router.delete("/{video_id}")
 async def delete_video(video_id: int):
+    execute_update("DELETE FROM fixtures WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("DELETE FROM fixture_summary WHERE video_id = %(vid)s", {"vid": video_id})
     execute_update("DELETE FROM detections WHERE video_id = %(vid)s", {"vid": video_id})
-    execute_update("DELETE FROM analysis_results WHERE video_id = %(vid)s", {"vid": video_id})
-    execute_update("DELETE FROM review_log WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("DELETE FROM processing_log WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("DELETE FROM anomalies WHERE video_id = %(vid)s", {"vid": video_id})
     execute_update("DELETE FROM videos WHERE video_id = %(vid)s", {"vid": video_id})
     return {"deleted": True}
+
+
+@router.post("/reprocess/{video_id}")
+async def reprocess_video(video_id: int):
+    video = execute_query("SELECT * FROM videos WHERE video_id = %(vid)s", {"vid": video_id})
+    if not video:
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
+    execute_update("DELETE FROM fixtures WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("DELETE FROM fixture_summary WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("DELETE FROM detections WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("DELETE FROM anomalies WHERE video_id = %(vid)s", {"vid": video_id})
+    execute_update("UPDATE videos SET status='PENDING', progress_pct=0, error_message=NULL WHERE video_id=%(vid)s", {"vid": video_id})
+    worker = ProcessingWorker()
+    worker.start_processing(video_id)
+    return {"status": "REPROCESSING", "video_id": video_id}
+
+
+@router.post("/batch")
+async def start_batch(volume_path: str = VIDEO_VOLUME):
+    worker = ProcessingWorker()
+    return worker.start_batch(volume_path)
+
+
+@router.get("/batch/{batch_id}")
+async def get_batch_status(batch_id: int):
+    worker = ProcessingWorker()
+    batch = worker.get_batch(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch nao encontrado")
+    return batch

@@ -1,4 +1,4 @@
-"""Video processing pipeline: frame extraction + FMAPI analysis."""
+"""Video processing pipeline for retail fixture detection and counting."""
 
 import os
 import io
@@ -6,24 +6,54 @@ import base64
 import hashlib
 import logging
 import time
+import json
 import tempfile
+import re
+from datetime import datetime
 
 import cv2
 
-from server.database import execute_query, execute_update, get_workspace_client
-from server.fmapi import analyze_frame
+from server.database import execute_query, execute_update, get_workspace_client, get_config
+from server.fmapi import analyze_frame_fixtures
+from server.fixture_tracker import FixtureTracker
 
 logger = logging.getLogger(__name__)
 
-THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc_ai/main/thumbnails")
+THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/scenic_crawler/default/thumbnails")
+VIDEO_VOLUME = os.environ.get("VIDEO_VOLUME", "/Volumes/scenic_crawler/default/uploaded_videos")
 
 
-def compute_file_hash(filepath: str) -> str:
-    h = hashlib.md5()
-    with open(filepath, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def parse_video_filename(filename: str) -> dict:
+    """Parse filename in format UF_IDLOJA_yyyymmdd.mp4
+
+    Returns dict with uf, store_id, video_date or raises ValueError.
+    """
+    name = filename.rsplit(".", 1)[0] if "." in filename else filename
+    parts = name.split("_")
+    if len(parts) < 3:
+        raise ValueError(f"Formato invalido: esperado UF_IDLOJA_yyyymmdd, recebido: {filename}")
+
+    uf = parts[0].upper()
+    store_id = parts[1]
+    date_str = parts[2]
+
+    if len(uf) != 2:
+        raise ValueError(f"UF invalida: {uf}")
+
+    valid_ufs = [
+        "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
+        "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
+        "SP", "SE", "TO",
+    ]
+    if uf not in valid_ufs:
+        raise ValueError(f"UF invalida: {uf}")
+
+    try:
+        video_date = datetime.strptime(date_str, "%Y%m%d").date()
+    except ValueError:
+        raise ValueError(f"Data invalida: {date_str}, esperado formato yyyymmdd")
+
+    return {"uf": uf, "store_id": store_id, "video_date": video_date}
 
 
 def get_video_metadata(video_path: str) -> dict:
@@ -56,7 +86,6 @@ def save_thumbnail(video_id: int, frame_bytes: bytes, timestamp_sec: float) -> s
         w = get_workspace_client()
         with open(local_path, "rb") as fh:
             w.files.upload(volume_path, fh, overwrite=True)
-        logger.info(f"Thumbnail saved: {filename}")
     except Exception as e:
         logger.error(f"Failed to upload thumbnail: {e}")
 
@@ -65,64 +94,57 @@ def save_thumbnail(video_id: int, frame_bytes: bytes, timestamp_sec: float) -> s
     return filename
 
 
-def _deduplicate_detections(detections, dedup_window=5):
-    """Merge consecutive detections of same category within dedup_window seconds."""
-    if not detections:
-        return []
-    sorted_dets = sorted(detections, key=lambda d: d["timestamp_sec"])
-    merged = []
-    current = sorted_dets[0]
-    for det in sorted_dets[1:]:
-        if det["category"] == current["category"] and det["timestamp_sec"] - current["timestamp_sec"] <= dedup_window:
-            if det["score"] > current["score"]:
-                current = det
-        else:
-            merged.append(current)
-            current = det
-    merged.append(current)
-    return merged
+def ensure_store_exists(store_id: str, uf: str):
+    """Create store record if it doesn't exist."""
+    rows = execute_query("SELECT store_id FROM stores WHERE store_id = %(sid)s", {"sid": store_id})
+    if not rows:
+        execute_update(
+            "INSERT INTO stores (store_id, uf) VALUES (%(sid)s, %(uf)s)",
+            {"sid": store_id, "uf": uf},
+        )
 
 
-def process_video(video_id: int, local_path: str, config: dict, progress_callback=None):
-    """Single-pass analysis pipeline. Extracts frames and analyzes each one."""
-    import json
+def process_video(video_id: int, local_path: str, progress_callback=None):
+    """Main video processing pipeline for fixture detection."""
+    start_time = time.time()
 
-    categories = config.get("categories", ["fadiga", "distracao"])
-    scan_prompt = config.get("scan_prompt", "Analyze this truck driver image for signs of fatigue and distraction.")
-    scan_fps = config.get("scan_fps", 0.2)
-    threshold = config.get("score_threshold", 4)
+    scan_fps = float(get_config("scan_fps", "0.5"))
+    confidence_threshold = float(get_config("confidence_threshold", "0.6"))
+    dedup_threshold = float(get_config("dedup_position_threshold", "15"))
 
-    logger.info(f"[V{video_id}] Starting processing: {local_path}")
-    logger.info(f"[V{video_id}] Config: fps={scan_fps}, threshold={threshold}, categories={categories}")
+    logger.info(f"[V{video_id}] Starting fixture detection: {local_path}")
+    logger.info(f"[V{video_id}] Config: scan_fps={scan_fps}, confidence={confidence_threshold}, dedup={dedup_threshold}")
 
-    # Update status
     execute_update(
-        f"UPDATE videos SET status = 'SCANNING', progress_pct = 0 WHERE video_id = %(vid)s",
+        "UPDATE videos SET status = 'PROCESSING', progress_pct = 0 WHERE video_id = %(vid)s",
         {"vid": video_id},
     )
 
-    # Open video
+    # Log start
+    log_id = int(time.time() * 1000)
+    execute_update(
+        "INSERT INTO processing_log (log_id, video_id, started_at, status) VALUES (%(lid)s, %(vid)s, NOW(), 'RUNNING')",
+        {"lid": log_id, "vid": video_id},
+    )
+
     cap = cv2.VideoCapture(local_path)
     if not cap.isOpened():
-        logger.error(f"[V{video_id}] Cannot open video file")
-        execute_update(
-            f"UPDATE videos SET status = 'FAILED', error_message = 'Cannot open video' WHERE video_id = %(vid)s",
-            {"vid": video_id},
-        )
+        _fail_video(video_id, log_id, "Nao foi possivel abrir o video")
         return
 
     video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = total_frames / video_fps if video_fps > 0 else 0
     frame_interval = max(1, int(video_fps / scan_fps)) if scan_fps < video_fps else 1
-
-    # Calculate how many frames we'll actually analyze
     frames_to_analyze = total_frames // frame_interval
-    logger.info(f"[V{video_id}] Video: {duration:.1f}s, {video_fps:.1f}fps, {total_frames} total frames, analyzing ~{frames_to_analyze} frames")
 
-    detections = []
+    logger.info(f"[V{video_id}] Video: {duration:.1f}s, {video_fps:.1f}fps, analyzing ~{frames_to_analyze} frames")
+
+    tracker = FixtureTracker(position_threshold=dedup_threshold)
+    all_detections = []
     frame_idx = 0
     analyzed_count = 0
+    thumbnail_map = {}  # tracking_id -> (best_confidence, thumbnail_path)
 
     while True:
         ret, frame = cap.read()
@@ -134,50 +156,58 @@ def process_video(video_id: int, local_path: str, config: dict, progress_callbac
 
             # Resize for efficiency
             h, w = frame.shape[:2]
-            if w > 512:
-                scale = 512 / w
-                frame = cv2.resize(frame, (512, int(h * scale)))
+            if w > 640:
+                scale = 640 / w
+                frame = cv2.resize(frame, (640, int(h * scale)))
 
             _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             jpeg_bytes = jpeg.tobytes()
             frame_b64 = base64.b64encode(jpeg_bytes).decode()
 
-            # Analyze frame
             logger.info(f"[V{video_id}] Analyzing frame {analyzed_count+1}/{frames_to_analyze} at t={timestamp:.1f}s")
 
             try:
-                result = analyze_frame(frame_b64, scan_prompt, categories)
-                logger.info(f"[V{video_id}] Result: { {c: result.get(c,1) for c in categories} }")
+                detections = analyze_frame_fixtures(frame_b64)
+                logger.info(f"[V{video_id}] Found {len(detections)} fixtures in frame")
             except Exception as e:
                 logger.error(f"[V{video_id}] Frame analysis error: {e}")
-                result = {cat: 1 for cat in categories}
-                result["description"] = f"Erro: {str(e)[:100]}"
-                result["confidence"] = 0.0
+                detections = []
 
-            max_score = max(result.get(c, 0) for c in categories)
-            max_cat = max(categories, key=lambda c: result.get(c, 0))
+            # Filter by confidence
+            detections = [d for d in detections if d.get("confidence", 0) >= confidence_threshold]
 
-            if max_score >= threshold:
-                # Save thumbnail
-                thumb = save_thumbnail(video_id, jpeg_bytes, timestamp)
-                detections.append({
+            # Feed to tracker
+            tracker.process_frame(detections, frame_idx, timestamp)
+
+            # Save raw detections
+            for det in detections:
+                det_id = int(time.time() * 1000000) + len(all_detections)
+                pos = det.get("position", {})
+                all_detections.append({
+                    "detection_id": det_id,
                     "video_id": video_id,
-                    "timestamp_sec": timestamp,
-                    "category": max_cat,
-                    "score": max_score,
-                    "confidence": result.get("confidence", 0.5),
-                    "ai_description": result.get("description", ""),
-                    "thumbnail_path": thumb,
                     "frame_index": frame_idx,
-                    "scores_detail": {c: result.get(c, 0) for c in categories},
+                    "timestamp_sec": timestamp,
+                    "fixture_type": det["type"],
+                    "confidence": det["confidence"],
+                    "bbox_x": pos.get("x", 50),
+                    "bbox_y": pos.get("y", 50),
+                    "occupancy_level": det.get("occupancy", "PARCIAL"),
+                    "occupancy_pct": det.get("occupancy_pct", 50),
+                    "ai_description": det.get("description", ""),
                 })
-                logger.info(f"[V{video_id}] Detection! {max_cat}={max_score} at t={timestamp:.1f}s")
+
+            # Save thumbnails for highest-confidence observation of each tracked fixture
+            for tf in tracker.tracked_fixtures:
+                if tf.best_frame_index == frame_idx:
+                    thumb = save_thumbnail(video_id, jpeg_bytes, timestamp)
+                    thumbnail_map[tf.tracking_id] = thumb
 
             analyzed_count += 1
             pct = (analyzed_count / max(1, frames_to_analyze)) * 95
             execute_update(
-                f"UPDATE videos SET status = 'ANALYZING', progress_pct = %(pct)s WHERE video_id = %(vid)s",
-                {"vid": video_id, "pct": pct},
+                "UPDATE videos SET progress_pct = %(pct)s, frames_analyzed = %(fa)s WHERE video_id = %(vid)s",
+                {"vid": video_id, "pct": pct, "fa": analyzed_count},
             )
             if progress_callback:
                 progress_callback(video_id, pct)
@@ -185,85 +215,175 @@ def process_video(video_id: int, local_path: str, config: dict, progress_callbac
         frame_idx += 1
 
     cap.release()
-    logger.info(f"[V{video_id}] Analysis complete. {len(detections)} raw detections from {analyzed_count} frames.")
 
-    detections = _deduplicate_detections(detections, config.get("dedup_window", 5))
-    logger.info(f"[V{video_id}] After deduplication: {len(detections)} detections.")
+    # Get unique fixtures from tracker
+    unique_fixtures = tracker.get_unique_fixtures(min_frames=1)
+    logger.info(f"[V{video_id}] Analysis complete. {len(all_detections)} raw detections -> {len(unique_fixtures)} unique fixtures")
 
-    # Persist results
-    _save_results(video_id, detections, categories, config)
+    # Get video info for store/UF
+    video_info = execute_query("SELECT store_id, uf, video_date FROM videos WHERE video_id = %(vid)s", {"vid": video_id})
+    if not video_info:
+        _fail_video(video_id, log_id, "Video nao encontrado no banco")
+        return
 
-    # Mark complete
+    store_id = video_info[0]["store_id"]
+    uf = video_info[0]["uf"]
+    video_date = video_info[0]["video_date"]
+
+    # Persist fixtures
+    _save_fixtures(video_id, unique_fixtures, thumbnail_map, store_id, uf, video_date)
+
+    # Generate summary
+    _generate_summary(video_id, unique_fixtures, store_id, uf, video_date)
+
+    # Detect anomalies
+    _detect_anomalies(video_id, unique_fixtures, store_id, uf)
+
+    # Update processing log
+    processing_time = time.time() - start_time
+    execute_update("""
+        UPDATE processing_log SET completed_at = NOW(), status = 'SUCCESS',
+            processing_time_sec = %(t)s, frames_total = %(ft)s,
+            frames_analyzed = %(fa)s, fixtures_detected = %(fd)s
+        WHERE log_id = %(lid)s
+    """, {"t": processing_time, "ft": total_frames, "fa": analyzed_count,
+          "fd": len(unique_fixtures), "lid": log_id})
+
+    # Mark video complete
     execute_update(
-        f"UPDATE videos SET status = 'COMPLETED', progress_pct = 100 WHERE video_id = %(vid)s",
-        {"vid": video_id},
+        "UPDATE videos SET status = 'COMPLETED', progress_pct = 100, frames_analyzed = %(fa)s WHERE video_id = %(vid)s",
+        {"vid": video_id, "fa": analyzed_count},
     )
     if progress_callback:
         progress_callback(video_id, 100)
 
-    logger.info(f"[V{video_id}] Done!")
+    logger.info(f"[V{video_id}] Done! {len(unique_fixtures)} unique fixtures in {processing_time:.1f}s")
 
 
-def _save_results(video_id: int, detections: list[dict], categories: list[str], config: dict):
-    import json
-
-    scores = {}
-    for cat in categories:
-        cat_scores = [d["scores_detail"].get(cat, 0) for d in detections if d["scores_detail"].get(cat, 0) > 0]
-        scores[cat] = max(cat_scores) if cat_scores else 0
-
-    overall = max(scores.values()) if scores else 0
-
-    scores_json = json.dumps(scores)
-    config_json = json.dumps(config, default=str)
-    result_id = int(time.time() * 1000)
-
-    execute_update(f"""
-        INSERT INTO analysis_results
-        (result_id, video_id, analysis_timestamp, scores_json, overall_risk, total_detections,
-         scan_fps, detail_fps, model_used, config_snapshot)
-        VALUES (%(rid)s, %(vid)s, NOW(), %(scores)s, %(risk)s, %(total)s,
-                %(sfps)s, %(dfps)s, %(model)s, %(cfg)s)
-    """, {
-        "rid": result_id,
-        "vid": video_id,
-        "scores": scores_json,
-        "risk": overall,
-        "total": len(detections),
-        "sfps": config.get("scan_fps", 0.2),
-        "dfps": config.get("detail_fps", 1.0),
-        "model": os.environ.get("FMAPI_MODEL", "llama-4-maverick"),
-        "cfg": config_json,
-    })
-
-    for i, det in enumerate(detections):
-        det_id = int(time.time() * 1000) + i + 1
-        execute_update(f"""
-            INSERT INTO detections
-            (detection_id, video_id, result_id, timestamp_sec, category, score, confidence,
-             ai_description, thumbnail_path, frame_index, review_status)
-            VALUES (%(did)s, %(vid)s, %(rid)s, %(ts)s, %(cat)s, %(score)s, %(conf)s,
-                    %(desc)s, %(thumb)s, %(fidx)s, 'PENDING')
+def _save_fixtures(video_id, unique_fixtures, thumbnail_map, store_id, uf, video_date):
+    for tf in unique_fixtures:
+        fixture_id = int(time.time() * 1000000) + tf.tracking_id
+        thumb = thumbnail_map.get(tf.tracking_id, "")
+        execute_update("""
+            INSERT INTO fixtures
+            (fixture_id, video_id, store_id, uf, video_date, fixture_type, tracking_id,
+             first_seen_sec, last_seen_sec, frame_count, avg_confidence,
+             best_thumbnail_path, occupancy_level, occupancy_pct, ai_description, position_zone)
+            VALUES (%(fid)s, %(vid)s, %(sid)s, %(uf)s, %(vd)s, %(ft)s, %(tid)s,
+                    %(first)s, %(last)s, %(fc)s, %(conf)s,
+                    %(thumb)s, %(occ)s, %(occ_pct)s, %(desc)s, %(zone)s)
         """, {
-            "did": det_id,
-            "vid": det["video_id"],
-            "rid": result_id,
-            "ts": det["timestamp_sec"],
-            "cat": det["category"],
-            "score": det["score"],
-            "conf": det["confidence"],
-            "desc": det["ai_description"],
-            "thumb": det["thumbnail_path"],
-            "fidx": det["frame_index"],
+            "fid": fixture_id, "vid": video_id, "sid": store_id, "uf": uf,
+            "vd": video_date, "ft": tf.fixture_type, "tid": tf.tracking_id,
+            "first": tf.first_seen_sec, "last": tf.last_seen_sec,
+            "fc": tf.frame_count, "conf": tf.avg_confidence,
+            "thumb": thumb, "occ": tf.dominant_occupancy,
+            "occ_pct": tf.avg_occupancy_pct, "desc": tf.best_description,
+            "zone": tf.zone,
         })
 
-    # Log processing
-    log_id = int(time.time() * 1000) + len(detections) + 100
-    execute_update(f"""
-        INSERT INTO processing_log
-        (log_id, video_id, volume_path, processed_at, status, processing_time_sec)
-        SELECT %(lid)s, video_id, volume_path, NOW(), 'SUCCESS', 0
-        FROM videos WHERE video_id = %(vid)s
-    """, {"lid": log_id, "vid": video_id})
 
-    logger.info(f"[V{video_id}] Saved {len(detections)} detections, overall risk={overall:.1f}")
+def _generate_summary(video_id, unique_fixtures, store_id, uf, video_date):
+    """Generate fixture_summary aggregation by type."""
+    # Delete old summary for this video
+    execute_update("DELETE FROM fixture_summary WHERE video_id = %(vid)s", {"vid": video_id})
+
+    # Aggregate by type
+    by_type = {}
+    for tf in unique_fixtures:
+        if tf.fixture_type not in by_type:
+            by_type[tf.fixture_type] = {"fixtures": [], "occupancy_pcts": []}
+        by_type[tf.fixture_type]["fixtures"].append(tf)
+        by_type[tf.fixture_type]["occupancy_pcts"].append(tf.avg_occupancy_pct)
+
+    for ftype, data in by_type.items():
+        fixtures = data["fixtures"]
+        occ_pcts = data["occupancy_pcts"]
+        avg_occ = sum(occ_pcts) / len(occ_pcts) if occ_pcts else 0
+        empty = sum(1 for tf in fixtures if tf.dominant_occupancy == "VAZIO")
+        partial = sum(1 for tf in fixtures if tf.dominant_occupancy == "PARCIAL")
+        full = sum(1 for tf in fixtures if tf.dominant_occupancy == "CHEIO")
+
+        summary_id = int(time.time() * 1000000) + hash(ftype) % 10000
+        execute_update("""
+            INSERT INTO fixture_summary
+            (summary_id, video_id, store_id, uf, video_date, fixture_type,
+             total_count, avg_occupancy_pct, empty_count, partial_count, full_count)
+            VALUES (%(sid)s, %(vid)s, %(store)s, %(uf)s, %(vd)s, %(ft)s,
+                    %(count)s, %(avg_occ)s, %(empty)s, %(partial)s, %(full)s)
+        """, {
+            "sid": summary_id, "vid": video_id, "store": store_id, "uf": uf,
+            "vd": video_date, "ft": ftype, "count": len(fixtures),
+            "avg_occ": avg_occ, "empty": empty, "partial": partial, "full": full,
+        })
+
+
+def _detect_anomalies(video_id, unique_fixtures, store_id, uf):
+    """Detect anomalies by comparing store fixture counts to UF averages."""
+    try:
+        anomaly_threshold = float(get_config("anomaly_std_threshold", "1.5"))
+    except Exception:
+        anomaly_threshold = 1.5
+
+    # Count fixtures by type for this video
+    current_counts = {}
+    for tf in unique_fixtures:
+        current_counts[tf.fixture_type] = current_counts.get(tf.fixture_type, 0) + 1
+
+    total_current = sum(current_counts.values())
+
+    # Get UF average (from fixture_summary of other stores in same UF)
+    try:
+        rows = execute_query("""
+            SELECT fixture_type, AVG(total_count) as avg_count, STDDEV(total_count) as std_count
+            FROM fixture_summary
+            WHERE uf = %(uf)s AND store_id != %(sid)s
+            GROUP BY fixture_type
+        """, {"uf": uf, "sid": store_id})
+
+        uf_stats = {r["fixture_type"]: r for r in rows}
+
+        for ftype, count in current_counts.items():
+            if ftype in uf_stats:
+                avg = float(uf_stats[ftype]["avg_count"] or 0)
+                std = float(uf_stats[ftype]["std_count"] or 0)
+                if std > 0 and abs(count - avg) > anomaly_threshold * std:
+                    direction = "abaixo" if count < avg else "acima"
+                    severity = "HIGH" if abs(count - avg) > 2 * std else "MEDIUM"
+                    anomaly_id = int(time.time() * 1000000) + hash(ftype) % 10000
+                    execute_update("""
+                        INSERT INTO anomalies (anomaly_id, store_id, uf, video_id, anomaly_type, severity, message, details)
+                        VALUES (%(aid)s, %(sid)s, %(uf)s, %(vid)s, 'FIXTURE_COUNT', %(sev)s, %(msg)s, %(det)s)
+                    """, {
+                        "aid": anomaly_id, "sid": store_id, "uf": uf, "vid": video_id,
+                        "sev": severity,
+                        "msg": f"Loja {store_id} tem {count} {ftype}(s), significativamente {direction} da media da UF ({avg:.1f})",
+                        "det": json.dumps({"fixture_type": ftype, "count": count, "uf_avg": avg, "uf_std": std}),
+                    })
+
+        # Check low occupancy anomaly
+        total_occupancy = sum(tf.avg_occupancy_pct for tf in unique_fixtures) / max(1, len(unique_fixtures))
+        if total_occupancy < 30 and len(unique_fixtures) > 0:
+            anomaly_id = int(time.time() * 1000000) + 99999
+            execute_update("""
+                INSERT INTO anomalies (anomaly_id, store_id, uf, video_id, anomaly_type, severity, message, details)
+                VALUES (%(aid)s, %(sid)s, %(uf)s, %(vid)s, 'LOW_OCCUPANCY', 'HIGH', %(msg)s, %(det)s)
+            """, {
+                "aid": anomaly_id, "sid": store_id, "uf": uf, "vid": video_id,
+                "msg": f"Loja {store_id} com ocupacao media de {total_occupancy:.0f}% - possivel necessidade de reabastecimento",
+                "det": json.dumps({"avg_occupancy_pct": total_occupancy}),
+            })
+
+    except Exception as e:
+        logger.warning(f"Anomaly detection error: {e}")
+
+
+def _fail_video(video_id, log_id, message):
+    execute_update(
+        "UPDATE videos SET status = 'FAILED', error_message = %(msg)s WHERE video_id = %(vid)s",
+        {"vid": video_id, "msg": message},
+    )
+    execute_update(
+        "UPDATE processing_log SET completed_at = NOW(), status = 'FAILED', error_message = %(msg)s WHERE log_id = %(lid)s",
+        {"lid": log_id, "msg": message},
+    )

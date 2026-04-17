@@ -1,4 +1,4 @@
-"""Databricks Scenic Crawler AI - Video Analysis App (Lakebase Edition)."""
+"""LASA Scenic Crawler - Inventario Inteligente de Expositores (Lakebase Edition)."""
 
 import os
 import logging
@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from server.database import init_db_pool, close_db_pool
-from server.routes import videos, batch, review, analysis, thumbnails, configurations, branding, dashboard, debug, catalog_browser, reports, contexts, streaming, storage
+from server.routes import videos, dashboard, analysis, reports, thumbnails, configurations, branding
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,34 +18,27 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Databricks Scenic Crawler AI application...")
+    logger.info("Starting LASA Scenic Crawler application...")
     await init_db_pool()
     yield
-    logger.info("Shutting down Databricks Scenic Crawler AI application...")
+    logger.info("Shutting down LASA Scenic Crawler application...")
     await close_db_pool()
 
 
 app = FastAPI(
-    title="Databricks Scenic Crawler AI",
-    description="AI-powered Video Analysis - Powered by Lakebase",
-    version="1.0.0",
+    title="LASA Scenic Crawler",
+    description="Inventario Inteligente de Expositores - Powered by Databricks Lakebase",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
 app.include_router(videos.router, prefix="/api/videos", tags=["Videos"])
-app.include_router(batch.router, prefix="/api/batch", tags=["Batch Processing"])
-app.include_router(review.router, prefix="/api/review", tags=["Review"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
+app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(thumbnails.router, prefix="/api/thumbnails", tags=["Thumbnails"])
 app.include_router(configurations.router, prefix="/api/config", tags=["Configurations"])
 app.include_router(branding.router, prefix="/api/branding", tags=["Branding"])
-app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
-app.include_router(debug.router, prefix="/api/debug", tags=["Debug"])
-app.include_router(catalog_browser.router, prefix="/api/catalog", tags=["Catalog Browser"])
-app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
-app.include_router(contexts.router, prefix="/api/contexts", tags=["Contexts"])
-app.include_router(streaming.router, prefix="/api/stream", tags=["Streaming"])
-app.include_router(storage.router, prefix="/api/storage", tags=["Storage"])
 
 frontend_dist = Path(__file__).parent / "frontend" / "dist"
 
@@ -70,7 +63,7 @@ if frontend_dist.exists():
 else:
     @app.get("/")
     async def root():
-        return {"message": "Databricks Scenic Crawler AI API - Frontend not built yet"}
+        return {"message": "LASA Scenic Crawler API - Frontend not built yet"}
 
 
 if __name__ == "__main__":

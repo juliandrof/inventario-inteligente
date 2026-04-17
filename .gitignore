@@ -8,4 +8,3 @@ node_modules/
 .databricks/
 *.egg-info/
 .DS_Store
-app.yaml

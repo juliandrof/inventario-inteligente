@@ -12,7 +12,7 @@ from server.database import execute_query, execute_update, get_workspace_client
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/dbxsc_ai/main/thumbnails")
+THUMBNAIL_VOLUME = os.environ.get("THUMBNAIL_VOLUME", "/Volumes/scenic_crawler/default/thumbnails")
 
 
 class BrandingUpdate(BaseModel):
@@ -54,7 +54,7 @@ async def upload_logo(file: UploadFile = File(...)):
             w.files.upload(volume_path, f, overwrite=True)
         os.unlink(tmp.name)
     except Exception as e:
-        raise HTTPException(500, f"Failed to upload logo: {e}")
+        raise HTTPException(500, f"Erro ao fazer upload do logo: {e}")
 
     existing = execute_query("SELECT setting_key FROM branding WHERE setting_key = 'logo_path'")
     if existing:
@@ -69,7 +69,7 @@ async def upload_logo(file: UploadFile = File(...)):
 async def get_logo():
     rows = execute_query("SELECT setting_value FROM branding WHERE setting_key = 'logo_path'")
     if not rows or not rows[0]["setting_value"]:
-        raise HTTPException(404, "No custom logo set")
+        raise HTTPException(404, "Nenhum logo customizado")
     logo_name = rows[0]["setting_value"]
     try:
         w = get_workspace_client()
@@ -79,4 +79,4 @@ async def get_logo():
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "svg": "image/svg+xml"}.get(ext, "image/png")
         return Response(content=data, media_type=mime)
     except Exception:
-        raise HTTPException(404, "Logo file not found")
+        raise HTTPException(404, "Logo nao encontrado")

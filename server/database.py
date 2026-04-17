@@ -1,16 +1,14 @@
-"""Database connection module for Databricks Scenic Crawler AI - Lakebase (PostgreSQL)."""
+"""Database connection module - Lakebase (PostgreSQL) for Scenic Crawler AI."""
 
 import os
 import json
 import logging
-import subprocess
 import ssl
 import time
 import urllib.request
 import urllib.error
 from typing import Optional, Any
 
-# Allow self-signed certs in corporate environments
 try:
     ssl._create_default_https_context = ssl._create_unverified_context
 except Exception:
@@ -26,9 +24,9 @@ IS_DATABRICKS_APP = bool(os.environ.get("DATABRICKS_APP_NAME"))
 
 DB_HOST = os.environ.get("DBXSC_AI_DB_HOST", "")
 DB_PORT = int(os.environ.get("DBXSC_AI_DB_PORT", "5432"))
-DB_NAME = os.environ.get("DBXSC_AI_DB_NAME", "dbxsc_ai")
+DB_NAME = os.environ.get("DBXSC_AI_DB_NAME", "scenic_crawler")
 DB_SCHEMA = os.environ.get("DBXSC_AI_DB_SCHEMA", "public")
-LAKEBASE_PROJECT = os.environ.get("DBXSC_AI_LAKEBASE_PROJECT", "dbxsc-ai")
+LAKEBASE_PROJECT = os.environ.get("DBXSC_AI_LAKEBASE_PROJECT", "scenic-crawler")
 LAKEBASE_BRANCH = os.environ.get("DBXSC_AI_LAKEBASE_BRANCH", "production")
 LAKEBASE_ENDPOINT = os.environ.get("DBXSC_AI_LAKEBASE_ENDPOINT", "primary")
 
@@ -43,12 +41,10 @@ def _get_workspace_client() -> WorkspaceClient:
 
 
 def _get_lakebase_credentials() -> tuple[str, str, str]:
-    """Get Lakebase host, user, and database credential token using SDK."""
     w = _get_workspace_client()
     host = DB_HOST
     endpoint_name = f"projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}/endpoints/{LAKEBASE_ENDPOINT}"
 
-    # Auto-discover host if not set
     if not host:
         try:
             branch_path = f"projects/{LAKEBASE_PROJECT}/branches/{LAKEBASE_BRANCH}"
@@ -58,7 +54,6 @@ def _get_lakebase_credentials() -> tuple[str, str, str]:
                 logger.info(f"Discovered Lakebase host: {host}")
         except Exception as e:
             logger.warning(f"Could not discover Lakebase host via SDK: {e}")
-            # Fallback to REST API
             try:
                 ws_host = w.config.host.rstrip("/")
                 headers = w.config.authenticate()
@@ -76,32 +71,25 @@ def _get_lakebase_credentials() -> tuple[str, str, str]:
     if not host:
         raise ValueError("DBXSC_AI_DB_HOST not set and could not discover")
 
-    # Get credentials - prefer env vars (native PG auth), fallback to OAuth
     user = os.environ.get("DBXSC_AI_DB_USER", "")
     password = os.environ.get("DBXSC_AI_DB_PASSWORD", "")
 
     if user and password:
-        logger.info(f"Using native PG credentials: user={user}")
         return host, user, password
 
-    # Fallback: OAuth credential generation
     db_token = ""
-    # Method 1: Try SDK
     try:
         credential = w.postgres.generate_database_credential(endpoint=endpoint_name)
         db_token = credential.token
     except Exception as e:
-        logger.info(f"SDK unavailable: {e}")
+        logger.info(f"SDK credential gen unavailable: {e}")
 
-    # Method 2: Generate database credential via REST API
     if not db_token:
         try:
             auth_headers = w.config.authenticate()
             ws_token = auth_headers.get("Authorization", "").replace("Bearer ", "") if auth_headers else ""
             if not ws_token and w.config.token:
                 ws_token = w.config.token
-            logger.info(f"Method 2: calling REST /api/2.0/postgres/credentials with ws_token_len={len(ws_token)}")
-
             ws_host = w.config.host.rstrip("/")
             url = f"{ws_host}/api/2.0/postgres/credentials"
             payload = json.dumps({"endpoint": endpoint_name}).encode("utf-8")
@@ -110,20 +98,16 @@ def _get_lakebase_credentials() -> tuple[str, str, str]:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 data = json.loads(resp.read())
                 db_token = data.get("token", "")
-                logger.info(f"Method 2: DB credential generated, token_len={len(db_token)}")
         except Exception as e:
-            logger.error(f"Method 2 (REST credential) failed: {e}")
+            logger.error(f"REST credential failed: {e}")
 
-    # Method 3: Last resort - workspace token directly
     if not db_token:
         try:
             auth_headers = w.config.authenticate()
             db_token = auth_headers.get("Authorization", "").replace("Bearer ", "") if auth_headers else ""
-            logger.info(f"Method 3 (raw workspace token fallback): token_len={len(db_token)}")
         except Exception as e:
-            logger.error(f"Method 3 failed: {e}")
+            logger.error(f"Token fallback failed: {e}")
 
-    # Get user identity for OAuth fallback
     if not user:
         try:
             me = w.current_user.me()
@@ -131,12 +115,10 @@ def _get_lakebase_credentials() -> tuple[str, str, str]:
         except Exception:
             user = "postgres"
 
-    logger.info(f"Lakebase (OAuth fallback): host={host}, user={user}")
     return host, user, db_token
 
 
 def get_connection():
-    """Get or create a PostgreSQL connection to Lakebase."""
     global _connection
     try:
         if _connection is not None:
@@ -155,7 +137,6 @@ def get_connection():
         host, user, password = _get_lakebase_credentials()
         logger.info(f"Connecting to Lakebase: host={host}, db={DB_NAME}, user={user}")
 
-        # First ensure the database exists
         try:
             tmp_conn = psycopg2.connect(
                 host=host, port=DB_PORT, database="postgres",
@@ -173,12 +154,8 @@ def get_connection():
             logger.warning(f"Could not check/create database: {e}")
 
         _connection = psycopg2.connect(
-            host=host,
-            port=DB_PORT,
-            database=DB_NAME,
-            user=user,
-            password=password,
-            sslmode="require",
+            host=host, port=DB_PORT, database=DB_NAME,
+            user=user, password=password, sslmode="require",
             options=f"-c search_path={DB_SCHEMA}",
         )
         _connection.autocommit = True
@@ -202,91 +179,92 @@ async def init_db_pool():
 
 
 def _auto_create_tables(conn):
-    """Create tables if they don't exist (auto-setup on first deploy)."""
     cur = conn.cursor()
 
-    # ---- schema statements executed individually so one failure doesn't block the rest ----
     schema_statements = [
+        ("CREATE TABLE stores", """
+            CREATE TABLE IF NOT EXISTS stores (
+                store_id VARCHAR(20) PRIMARY KEY, uf VARCHAR(2) NOT NULL,
+                name VARCHAR(200), address TEXT,
+                created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())
+        """),
         ("CREATE TABLE videos", """
             CREATE TABLE IF NOT EXISTS videos (
                 video_id BIGINT PRIMARY KEY, filename VARCHAR(500) NOT NULL,
-                volume_path VARCHAR(1000) NOT NULL, file_size_bytes BIGINT,
+                volume_path VARCHAR(1000) NOT NULL, uf VARCHAR(2) NOT NULL,
+                store_id VARCHAR(20) NOT NULL REFERENCES stores(store_id),
+                video_date DATE NOT NULL, file_size_bytes BIGINT,
                 duration_seconds DOUBLE PRECISION, fps DOUBLE PRECISION,
-                resolution VARCHAR(50), upload_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
-                status VARCHAR(20) NOT NULL DEFAULT 'PENDING', progress_pct DOUBLE PRECISION DEFAULT 0,
-                source VARCHAR(20), uploaded_by VARCHAR(200), error_message TEXT,
-                context_id BIGINT, context_name VARCHAR(200))
+                resolution VARCHAR(50), total_frames INTEGER,
+                frames_analyzed INTEGER DEFAULT 0,
+                upload_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+                status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                progress_pct DOUBLE PRECISION DEFAULT 0,
+                uploaded_by VARCHAR(200), error_message TEXT)
         """),
-        ("CREATE TABLE analysis_results", """
-            CREATE TABLE IF NOT EXISTS analysis_results (
-                result_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
-                analysis_timestamp TIMESTAMP NOT NULL DEFAULT NOW(), scores_json TEXT NOT NULL,
-                overall_risk DOUBLE PRECISION, total_detections INTEGER,
-                scan_fps DOUBLE PRECISION, detail_fps DOUBLE PRECISION,
-                model_used VARCHAR(200), config_snapshot TEXT)
+        ("CREATE TABLE fixture_types", """
+            CREATE TABLE IF NOT EXISTS fixture_types (
+                type_id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL UNIQUE,
+                display_name VARCHAR(200) NOT NULL, description TEXT,
+                icon VARCHAR(50), color VARCHAR(20) DEFAULT '#2563EB')
         """),
         ("CREATE TABLE detections", """
             CREATE TABLE IF NOT EXISTS detections (
                 detection_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
-                result_id BIGINT NOT NULL REFERENCES analysis_results(result_id),
-                timestamp_sec DOUBLE PRECISION NOT NULL, category VARCHAR(100) NOT NULL,
-                score INTEGER NOT NULL, confidence DOUBLE PRECISION, ai_description TEXT,
-                thumbnail_path VARCHAR(500), frame_index BIGINT,
-                review_status VARCHAR(20) DEFAULT 'PENDING', reviewed_by VARCHAR(200),
-                reviewed_at TIMESTAMP, reviewer_notes TEXT)
+                frame_index INTEGER NOT NULL, timestamp_sec DOUBLE PRECISION NOT NULL,
+                fixture_type VARCHAR(100) NOT NULL, confidence DOUBLE PRECISION,
+                bbox_x DOUBLE PRECISION, bbox_y DOUBLE PRECISION,
+                bbox_w DOUBLE PRECISION, bbox_h DOUBLE PRECISION,
+                tracking_id INTEGER, thumbnail_path VARCHAR(500),
+                ai_description TEXT, occupancy_level VARCHAR(20),
+                occupancy_pct DOUBLE PRECISION)
+        """),
+        ("CREATE TABLE fixtures", """
+            CREATE TABLE IF NOT EXISTS fixtures (
+                fixture_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
+                store_id VARCHAR(20) NOT NULL, uf VARCHAR(2) NOT NULL,
+                video_date DATE NOT NULL, fixture_type VARCHAR(100) NOT NULL,
+                tracking_id INTEGER, first_seen_sec DOUBLE PRECISION,
+                last_seen_sec DOUBLE PRECISION, frame_count INTEGER DEFAULT 1,
+                avg_confidence DOUBLE PRECISION, best_thumbnail_path VARCHAR(500),
+                occupancy_level VARCHAR(20), occupancy_pct DOUBLE PRECISION,
+                ai_description TEXT, position_zone VARCHAR(50))
+        """),
+        ("CREATE TABLE fixture_summary", """
+            CREATE TABLE IF NOT EXISTS fixture_summary (
+                summary_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
+                store_id VARCHAR(20) NOT NULL, uf VARCHAR(2) NOT NULL,
+                video_date DATE NOT NULL, fixture_type VARCHAR(100) NOT NULL,
+                total_count INTEGER NOT NULL, avg_occupancy_pct DOUBLE PRECISION,
+                empty_count INTEGER DEFAULT 0, partial_count INTEGER DEFAULT 0,
+                full_count INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW())
+        """),
+        ("CREATE TABLE anomalies", """
+            CREATE TABLE IF NOT EXISTS anomalies (
+                anomaly_id BIGINT PRIMARY KEY, store_id VARCHAR(20) NOT NULL,
+                uf VARCHAR(2) NOT NULL, video_id BIGINT,
+                anomaly_type VARCHAR(50) NOT NULL, severity VARCHAR(20) NOT NULL,
+                message TEXT NOT NULL, details TEXT,
+                created_at TIMESTAMP DEFAULT NOW(), resolved BOOLEAN DEFAULT FALSE)
         """),
         ("CREATE TABLE processing_log", """
             CREATE TABLE IF NOT EXISTS processing_log (
                 log_id BIGINT PRIMARY KEY, video_id BIGINT NOT NULL REFERENCES videos(video_id),
-                volume_path VARCHAR(1000) NOT NULL, file_hash VARCHAR(64),
-                processed_at TIMESTAMP NOT NULL DEFAULT NOW(), status VARCHAR(20) NOT NULL,
-                processing_time_sec DOUBLE PRECISION)
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(), completed_at TIMESTAMP,
+                status VARCHAR(20) NOT NULL, processing_time_sec DOUBLE PRECISION,
+                frames_total INTEGER, frames_analyzed INTEGER,
+                fixtures_detected INTEGER, error_message TEXT)
         """),
         ("CREATE TABLE configurations", """
             CREATE TABLE IF NOT EXISTS configurations (
                 config_id BIGINT PRIMARY KEY, config_key VARCHAR(200) NOT NULL UNIQUE,
                 config_value TEXT NOT NULL, description TEXT,
-                updated_at TIMESTAMP DEFAULT NOW(), updated_by VARCHAR(200))
+                updated_at TIMESTAMP DEFAULT NOW())
         """),
         ("CREATE TABLE branding", """
             CREATE TABLE IF NOT EXISTS branding (
                 setting_id BIGINT PRIMARY KEY, setting_key VARCHAR(200) NOT NULL UNIQUE,
                 setting_value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT NOW())
-        """),
-        ("CREATE TABLE review_log", """
-            CREATE TABLE IF NOT EXISTS review_log (
-                review_log_id BIGINT PRIMARY KEY, detection_id BIGINT NOT NULL,
-                video_id BIGINT NOT NULL, action VARCHAR(20) NOT NULL,
-                previous_status VARCHAR(20), reviewer VARCHAR(200) NOT NULL,
-                notes TEXT, action_timestamp TIMESTAMP NOT NULL DEFAULT NOW())
-        """),
-        ("CREATE TABLE contexts", """
-            CREATE TABLE IF NOT EXISTS contexts (
-                context_id BIGINT PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE,
-                description TEXT, categories TEXT NOT NULL DEFAULT '["fadiga", "distracao"]',
-                scan_prompt TEXT NOT NULL, scan_fps DOUBLE PRECISION DEFAULT 0.2,
-                detail_fps DOUBLE PRECISION DEFAULT 1.0, score_threshold INTEGER DEFAULT 4,
-                created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())
-        """),
-        ("ALTER videos add context_id", """
-            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_id BIGINT
-        """),
-        ("ALTER videos add context_name", """
-            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_name VARCHAR(200)
-        """),
-        ("ALTER videos add context_color", """
-            ALTER TABLE videos ADD COLUMN IF NOT EXISTS context_color VARCHAR(20)
-        """),
-        ("ALTER contexts add color", """
-            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#2563EB'
-        """),
-        ("ALTER contexts add dedup_window", """
-            ALTER TABLE contexts ADD COLUMN IF NOT EXISTS dedup_window INTEGER DEFAULT 5
-        """),
-        ("UPDATE videos context_color from contexts", """
-            UPDATE videos SET context_color = c.color
-                FROM contexts c WHERE videos.context_name = c.name
-                AND (videos.context_color IS NULL OR videos.context_color = '')
         """),
     ]
 
@@ -296,48 +274,77 @@ def _auto_create_tables(conn):
         except Exception as e:
             logger.warning(f"Auto-setup [{label}]: {e}")
 
+    # Indexes
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(status)",
+        "CREATE INDEX IF NOT EXISTS idx_videos_uf ON videos(uf)",
+        "CREATE INDEX IF NOT EXISTS idx_videos_store ON videos(store_id)",
+        "CREATE INDEX IF NOT EXISTS idx_fixtures_store ON fixtures(store_id)",
+        "CREATE INDEX IF NOT EXISTS idx_fixtures_uf ON fixtures(uf)",
+        "CREATE INDEX IF NOT EXISTS idx_fixtures_type ON fixtures(fixture_type)",
+        "CREATE INDEX IF NOT EXISTS idx_summary_store ON fixture_summary(store_id)",
+        "CREATE INDEX IF NOT EXISTS idx_summary_uf ON fixture_summary(uf)",
+        "CREATE INDEX IF NOT EXISTS idx_stores_uf ON stores(uf)",
+    ]
+    for idx_sql in indexes:
+        try:
+            cur.execute(idx_sql)
+        except Exception as e:
+            logger.warning(f"Index: {e}")
+
     logger.info("Tables verified/created")
 
-    # ---- seed defaults ----
+    # Seed fixture types
+    try:
+        cur.execute("SELECT COUNT(*) FROM fixture_types")
+        if cur.fetchone()[0] == 0:
+            cur.execute("""
+                INSERT INTO fixture_types (name, display_name, description, icon, color) VALUES
+                ('ARARA', 'Arara', 'Arara de roupas', 'hanger', '#E11D48'),
+                ('GONDOLA', 'Gondola', 'Gondola expositora', 'shelf', '#2563EB'),
+                ('CESTAO', 'Cestao', 'Cestao promocional', 'basket', '#F59E0B'),
+                ('PRATELEIRA', 'Prateleira', 'Prateleira de parede', 'wall-shelf', '#10B981'),
+                ('BALCAO', 'Balcao', 'Balcao de atendimento', 'counter', '#8B5CF6'),
+                ('DISPLAY', 'Display Promocional', 'Display de ponta de gondola', 'display', '#EC4899'),
+                ('CHECKOUT', 'Checkout', 'Caixa registradora', 'register', '#6366F1'),
+                ('MANEQUIM', 'Manequim', 'Manequim de vitrine', 'mannequin', '#14B8A6'),
+                ('MESA', 'Mesa Expositora', 'Mesa para exposicao', 'table', '#F97316'),
+                ('CABIDEIRO_PAREDE', 'Cabideiro de Parede', 'Cabideiro fixo na parede', 'wall-hanger', '#84CC16')
+            """)
+            logger.info("Fixture types seeded")
+    except Exception as e:
+        logger.warning(f"Seed fixture_types: {e}")
+
+    # Seed configurations
     try:
         cur.execute("SELECT COUNT(*) FROM configurations")
         if cur.fetchone()[0] == 0:
             cur.execute("""
                 INSERT INTO configurations (config_id, config_key, config_value, description, updated_at) VALUES
-                (1, 'detection_categories', '["fadiga", "distracao"]', 'Detection categories', NOW()),
-                (2, 'scan_prompt', 'Analyze this truck cabin camera image. Look for fatigue and distraction. Rate each 1-10.', 'Analysis prompt', NOW()),
-                (3, 'scan_fps', '0.2', 'Frames per second for scanning', NOW()),
-                (4, 'detail_fps', '1.0', 'FPS for detailed analysis', NOW()),
-                (5, 'score_threshold', '4', 'Minimum score to flag', NOW())
+                (1, 'scan_fps', '0.5', 'Frames por segundo para analise', NOW()),
+                (2, 'confidence_threshold', '0.6', 'Confianca minima para deteccao', NOW()),
+                (3, 'dedup_position_threshold', '15', 'Distancia maxima para dedup (%)', NOW()),
+                (4, 'anomaly_std_threshold', '1.5', 'Desvios padrao para anomalia', NOW()),
+                (5, 'timezone', 'America/Sao_Paulo', 'Timezone', NOW())
             """)
             logger.info("Default configurations seeded")
     except Exception as e:
-        logger.warning(f"Auto-setup [seed configurations]: {e}")
+        logger.warning(f"Seed configurations: {e}")
 
-    try:
-        cur.execute("SELECT 1 FROM configurations WHERE config_key = 'timezone'")
-        if not cur.fetchone():
-            cur.execute("""
-                INSERT INTO configurations (config_id, config_key, config_value, description, updated_at)
-                VALUES (%(id)s, 'timezone', 'America/Sao_Paulo', 'Timezone for dates and file names', NOW())
-            """, {"id": int(time.time() * 1000)})
-            logger.info("Default timezone seeded")
-    except Exception as e:
-        logger.warning(f"Auto-setup [seed timezone]: {e}")
-
+    # Seed branding
     try:
         cur.execute("SELECT COUNT(*) FROM branding")
         if cur.fetchone()[0] == 0:
             cur.execute("""
                 INSERT INTO branding (setting_id, setting_key, setting_value, updated_at) VALUES
-                (1, 'primary_color', '#2563EB', NOW()),
+                (1, 'primary_color', '#E11D48', NOW()),
                 (2, 'secondary_color', '#1E293B', NOW()),
-                (3, 'accent_color', '#3B82F6', NOW()),
+                (3, 'accent_color', '#F43F5E', NOW()),
                 (4, 'sidebar_color', '#0F172A', NOW())
             """)
             logger.info("Default branding seeded")
     except Exception as e:
-        logger.warning(f"Auto-setup [seed branding]: {e}")
+        logger.warning(f"Seed branding: {e}")
 
     cur.close()
 
@@ -353,7 +360,6 @@ async def close_db_pool():
 
 
 def execute_query(sql: str, params: Optional[dict] = None) -> list[dict[str, Any]]:
-    """Execute a query and return results as list of dicts."""
     conn = get_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
@@ -366,7 +372,6 @@ def execute_query(sql: str, params: Optional[dict] = None) -> list[dict[str, Any
 
 
 def execute_update(sql: str, params: Optional[dict] = None) -> int:
-    """Execute an INSERT/UPDATE/DELETE and return affected rows."""
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -376,12 +381,11 @@ def execute_update(sql: str, params: Optional[dict] = None) -> int:
         cur.close()
 
 
-def get_timezone() -> str:
-    """Read timezone config from DB with fallback to America/Sao_Paulo."""
+def get_config(key: str, default: str = "") -> str:
     try:
-        rows = execute_query("SELECT config_value FROM configurations WHERE config_key = 'timezone'")
+        rows = execute_query("SELECT config_value FROM configurations WHERE config_key = %(k)s", {"k": key})
         if rows:
             return rows[0]["config_value"]
     except Exception:
         pass
-    return "America/Sao_Paulo"
+    return default
