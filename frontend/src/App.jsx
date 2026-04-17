@@ -33,7 +33,7 @@ const ICONS = {
   config: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="2"/><path d="M10 1v3M10 16v3M1 10h3M16 10h3M3.5 3.5l2.1 2.1M14.4 14.4l2.1 2.1M3.5 16.5l2.1-2.1M14.4 5.6l2.1-2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
 };
 
-const DEFAULT_COLORS = { primary_color: '#E11D48', secondary_color: '#1E293B', accent_color: '#F43F5E', sidebar_color: '#0F172A' };
+const DEFAULT_COLORS = { primary_color: '#E11D48', secondary_color: '#1E293B', accent_color: '#F43F5E', sidebar_color: '#0F172A', header_bg_color: '#E11D48' };
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -63,6 +63,7 @@ function App() {
     <div className="app-layout" style={{
       '--lasa-primary': colors.primary_color, '--lasa-dark': colors.secondary_color,
       '--lasa-accent': colors.accent_color, '--lasa-sidebar': colors.sidebar_color,
+      '--lasa-header-bg': colors.header_bg_color,
     }}>
       <aside className="sidebar">
         <div className="sidebar-header">

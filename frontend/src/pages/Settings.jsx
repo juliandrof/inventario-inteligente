@@ -86,7 +86,7 @@ function Settings() {
       <div className="card">
         <h3>Branding</h3>
         <div className="branding-grid">
-          {['primary_color', 'secondary_color', 'accent_color', 'sidebar_color'].map(key => (
+          {['primary_color', 'secondary_color', 'accent_color', 'sidebar_color', 'header_bg_color'].map(key => (
             <div key={key} className="color-picker-row">
               <label>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</label>
               <input type="color" value={branding[key] || '#000000'} onChange={e => saveBranding(key, e.target.value)} />

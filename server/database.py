@@ -346,6 +346,17 @@ def _auto_create_tables(conn):
     except Exception as e:
         logger.warning(f"Seed branding: {e}")
 
+    # Ensure header_bg_color exists
+    try:
+        cur.execute("SELECT 1 FROM branding WHERE setting_key = 'header_bg_color'")
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO branding (setting_id, setting_key, setting_value, updated_at)
+                VALUES (%(id)s, 'header_bg_color', '#E11D48', NOW())
+            """, {"id": int(time.time() * 1000)})
+    except Exception as e:
+        logger.warning(f"Seed header_bg_color: {e}")
+
     cur.close()
 
 
