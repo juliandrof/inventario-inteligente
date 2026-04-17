@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchVideos, deleteVideo, reprocessVideo, fetchVideoFixtures, fetchFilters } from '../api';
-import { StatusBadge, TYPE_COLORS } from './Dashboard';
+import { StatusBadge, TYPE_COLORS, updateTypeColors } from './Dashboard';
 
 function VideoList({ navigate, pageParams }) {
   const [videos, setVideos] = useState([]);
@@ -12,7 +12,7 @@ function VideoList({ navigate, pageParams }) {
   const [expanded, setExpanded] = useState(null);
   const [fixtures, setFixtures] = useState(null);
 
-  useEffect(() => { fetchFilters().then(setFilters).catch(() => {}); }, []);
+  useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
 
   useEffect(() => {
     const f = {};

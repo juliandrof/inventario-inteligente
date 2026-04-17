@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchFixtures, fetchFixtureTypes, fetchFilters, fetchTemporal } from '../api';
-import { OccupancyBar, TYPE_COLORS } from './Dashboard';
+import { OccupancyBar, TYPE_COLORS, updateTypeColors } from './Dashboard';
 
 function FixtureView({ pageParams }) {
   const [fixtures, setFixtures] = useState([]);
@@ -14,7 +14,7 @@ function FixtureView({ pageParams }) {
   const [temporalStore, setTemporalStore] = useState('');
 
   useEffect(() => {
-    fetchFilters().then(setFilters).catch(() => {});
+    fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {});
     fetchFixtureTypes().then(setTypes).catch(() => {});
   }, []);
 

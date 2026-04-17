@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchDashboardSummary, fetchDashboardByType, fetchDashboardByUF, fetchDashboardByStore, fetchOccupancy, fetchAnomalies, fetchRecentVideos, fetchFilters } from '../api';
 
+// Mutable color map - populated from DB via fetchFilters, with hardcoded fallback
 const TYPE_COLORS = {
   ARARA: '#E11D48', GONDOLA: '#2563EB', CESTAO: '#F59E0B', PRATELEIRA: '#10B981',
   BALCAO: '#8B5CF6', DISPLAY: '#EC4899', CHECKOUT: '#6366F1', MANEQUIM: '#14B8A6',
   MESA: '#F97316', CABIDEIRO_PAREDE: '#84CC16',
 };
+
+function updateTypeColors(fixtureTypes) {
+  if (!fixtureTypes) return;
+  fixtureTypes.forEach(ft => {
+    if (ft.name && ft.color) TYPE_COLORS[ft.name] = ft.color;
+  });
+}
 
 function Dashboard({ navigate }) {
   const [summary, setSummary] = useState(null);
@@ -32,7 +40,7 @@ function Dashboard({ navigate }) {
     fetchRecentVideos(f).then(setRecent).catch(() => {});
   }, [selUF, selStore]);
 
-  useEffect(() => { fetchFilters().then(setFilters).catch(() => {}); }, []);
+  useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
 
   const maxByType = Math.max(...byType.map(r => r.total), 1);
@@ -225,5 +233,5 @@ function OccupancyHeatmap({ data }) {
   );
 }
 
-export { StatusBadge, OccupancyBar, TYPE_COLORS };
+export { StatusBadge, OccupancyBar, TYPE_COLORS, updateTypeColors };
 export default Dashboard;

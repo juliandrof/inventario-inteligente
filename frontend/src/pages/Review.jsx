@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchReviewVideos, fetchReviewFixtures, fetchFixtureFrames, fetchFilters } from '../api';
-import { TYPE_COLORS } from './Dashboard';
+import { TYPE_COLORS, updateTypeColors } from './Dashboard';
 
 function Review({ pageParams }) {
   const [filters, setFilters] = useState({ ufs: [], stores: [] });
@@ -16,7 +16,7 @@ function Review({ pageParams }) {
   const [frameData, setFrameData] = useState(null);
   const [loadingFrames, setLoadingFrames] = useState(false);
 
-  useEffect(() => { fetchFilters().then(setFilters).catch(() => {}); }, []);
+  useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
 
   useEffect(() => {
     const f = {};

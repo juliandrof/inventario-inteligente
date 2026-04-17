@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchReportSummary, fetchComparison, fetchFilters } from '../api';
-import { TYPE_COLORS, OccupancyBar } from './Dashboard';
+import { TYPE_COLORS, OccupancyBar, updateTypeColors } from './Dashboard';
 
 function Reports() {
   const [filters, setFilters] = useState({ ufs: [], stores: [] });
@@ -10,7 +10,7 @@ function Reports() {
   const [comparison, setComparison] = useState([]);
   const [tab, setTab] = useState('summary');
 
-  useEffect(() => { fetchFilters().then(setFilters).catch(() => {}); }, []);
+  useEffect(() => { fetchFilters().then(f => { setFilters(f); updateTypeColors(f.fixture_types); }).catch(() => {}); }, []);
 
   useEffect(() => {
     const f = {};
