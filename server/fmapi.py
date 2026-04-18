@@ -99,34 +99,36 @@ def analyze_frame_fixtures(frame_b64: str) -> list[dict]:
     )
 
     system_prompt = (
-        "Voce e um especialista em analise de layout de lojas de varejo. "
-        "Sua tarefa e identificar TODOS os expositores visiveis na imagem de uma loja. "
-        "Retorne APENAS JSON valido. Sem markdown, sem explicacao, apenas o array JSON."
+        "Voce e um sistema de deteccao de objetos especializado em mobiliario de lojas de varejo. "
+        "Para cada objeto detectado, retorna tipo, posicao precisa e metadados. "
+        "Retorne APENAS um array JSON valido. Sem markdown, sem code fences, sem texto extra."
     )
 
-    user_prompt = f"""Analise esta imagem de uma loja de varejo e identifique TODOS os expositores/mobiliarios visiveis.
+    user_prompt = f"""TAREFA: Detectar todos os expositores/mobiliarios de loja nesta imagem.
 
-Tipos validos: {types_str}
-
-Descricao dos tipos:
+TIPOS VALIDOS:
 {type_descriptions}
 
-Para CADA expositor encontrado, retorne:
-- "type": tipo do expositor (da lista acima)
-- "position": posicao aproximada como percentual do frame {{"x": 0-100, "y": 0-100}} (0,0 = canto superior esquerdo)
-- "zone": zona da loja onde esta (FRENTE, MEIO, FUNDO, ESQUERDA, DIREITA)
-- "occupancy": nivel de ocupacao (VAZIO, PARCIAL, CHEIO)
-- "occupancy_pct": percentual estimado de ocupacao 0-100
-- "confidence": confianca na deteccao 0.0-1.0
-- "description": descricao breve em portugues
+INSTRUCOES DE DETECCAO:
+1. Examine a imagem sistematicamente da esquerda para a direita, de cima para baixo
+2. Identifique CADA expositor fisico individual visivel
+3. Para cada um, determine a posicao do CENTRO do objeto como percentual da imagem:
+   - "x": 0 = borda esquerda, 100 = borda direita
+   - "y": 0 = topo, 100 = base
+4. Dois objetos do MESMO tipo so devem ser reportados separados se estao FISICAMENTE separados (distancia visivel entre eles)
+5. Se um expositor esta parcialmente cortado na borda, reporte apenas se >30% esta visivel
+6. NAO reporte o mesmo expositor mais de uma vez
 
-IMPORTANTE:
-- Conte CADA expositor individualmente, mesmo que sejam do mesmo tipo
-- Se houver 3 gondolas, retorne 3 objetos separados com posicoes diferentes
-- Se nao encontrar nenhum expositor, retorne []
+CRITERIOS DE CONFIANCA:
+- >= 0.8: certeza alta de que e esse tipo
+- 0.6 a 0.8: provavel mas com duvida
+- < 0.6: NAO reporte
 
-Retorne um array JSON. Exemplo:
-[{{"type": "GONDOLA", "position": {{"x": 30, "y": 50}}, "zone": "MEIO", "occupancy": "CHEIO", "occupancy_pct": 85, "confidence": 0.9, "description": "Gondola de produtos de limpeza bem abastecida"}}]"""
+FORMATO (array JSON):
+[{{"type": "TIPO", "position": {{"x": 35, "y": 48}}, "zone": "FRENTE|MEIO|FUNDO|ESQUERDA|DIREITA", "occupancy": "VAZIO|PARCIAL|CHEIO", "occupancy_pct": 75, "confidence": 0.92, "description": "descricao breve em portugues"}}]
+
+Tipos validos: {types_str}
+Se nao encontrar nenhum expositor, retorne []"""
 
     payload = {
         "messages": [
